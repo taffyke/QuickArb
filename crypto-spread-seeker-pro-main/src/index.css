@@ -1,0 +1,194 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 17% 12%;
+    --foreground: 220 10% 94%;
+    --card: 220 17% 14%;
+    --card-foreground: 220 10% 94%;
+    --popover: 220 17% 12%;
+    --popover-foreground: 220 10% 94%;
+    --primary: 203 79% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 25% 22%;
+    --secondary-foreground: 220 10% 94%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 220 10% 70%;
+    --accent: 215 25% 22%;
+    --accent-foreground: 220 10% 94%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 203 79% 59%;
+    --radius: 0.5rem;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 220 20% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 16%;
+    --primary: 203 79% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 220 20% 16%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 20% 46%;
+    --accent: 220 20% 94%;
+    --accent-foreground: 220 20% 16%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 20% 90%;
+    --input: 220 20% 90%;
+    --ring: 203 79% 59%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-200;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .dashboard-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6;
+  }
+  
+  .stats-card {
+    @apply p-4 rounded-lg border bg-card shadow-sm transition-colors duration-200;
+  }
+  
+  .crypto-indicator {
+    @apply h-2 w-2 rounded-full inline-block mr-1;
+  }
+  
+  .crypto-indicator-green {
+    @apply bg-crypto-green;
+  }
+  
+  .crypto-indicator-red {
+    @apply bg-crypto-red;
+  }
+  
+  .crypto-indicator-yellow {
+    @apply bg-crypto-yellow;
+  }
+
+  .text-crypto-green {
+    color: #00e396;
+  }
+
+  .text-crypto-red {
+    color: #ff3b69;
+  }
+
+  .text-crypto-yellow {
+    color: #feb019;
+  }
+
+  .text-crypto-blue {
+    color: #00b1f2;
+  }
+
+  .text-crypto-purple {
+    color: #775dd0;
+  }
+  
+  /* Enhanced UI for arbitrage scanner */
+  .arbitrage-highlight {
+    @apply border-l-4 border-primary pl-3;
+  }
+  
+  .arbitrage-card {
+    @apply bg-gradient-to-b from-card to-card/80 hover:from-card/80 hover:to-card transition-all duration-300 border-border/50;
+  }
+  
+  .market-metrics {
+    @apply grid grid-cols-2 sm:grid-cols-4 gap-1 md:gap-3 rounded-md bg-secondary/20 p-3;
+  }
+  
+  .metric-item {
+    @apply flex flex-col text-center p-2 rounded-md bg-secondary/30;
+  }
+  
+  .glassmorphism {
+    @apply backdrop-blur-lg bg-white/5 border border-white/10 shadow-md;
+  }
+  
+  .gradient-bg {
+    @apply bg-gradient-to-b from-background to-card/80;
+  }
+}
+
+/* Transitions */
+.transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.transform {
+  transform: translateX(var(--tw-translate-x)) translateY(var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+.rotate-180 {
+  --tw-rotate: 180deg;
+}
+
+/* Dark mode transition improvements */
+html.dark * {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Dropdown menu dark mode fixes */
+.dark [data-radix-popper-content-wrapper] {
+  @apply bg-background border-border;
+}
+
+/* Crypto theme specific styles */
+.alert-badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+.alert-badge-red {
+  @apply bg-crypto-red/10 text-crypto-red;
+}
+
+.alert-badge-green {
+  @apply bg-crypto-green/10 text-crypto-green;
+}
+
+.alert-badge-yellow {
+  @apply bg-crypto-yellow/10 text-crypto-yellow;
+}
+
+.alert-badge-blue {
+  @apply bg-crypto-blue/10 text-crypto-blue;
+}
+
+/* Chart customizations for crypto theme */
+.chart-container {
+  @apply rounded-md border border-border/50 bg-card/30 p-4;
+}
+
+.grid-lines {
+  @apply stroke-border/30;
+}
+
+.data-point {
+  @apply fill-primary stroke-primary/80 stroke-2;
+}
+
