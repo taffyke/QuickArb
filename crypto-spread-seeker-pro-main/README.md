@@ -71,3 +71,85 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Real-Time Cryptocurrency Price Adapters
+
+This project now includes real-time cryptocurrency price adapters for multiple exchanges. The adapters fetch live price data from exchange APIs and WebSocket feeds, replacing the mock data previously used.
+
+### Implemented Features
+
+- **REST API Integration**: Initial data fetching via REST endpoints
+- **WebSocket Feeds**: Real-time price updates via WebSocket
+- **Unified Format**: Consistent symbol format (e.g., `BTC-USDT`) across all exchanges
+- **Fallback Mechanism**: REST API fallback every 30 seconds
+- **Auto-Reconnect**: Automatic reconnection with exponential backoff
+- **Rate Limiting**: Token bucket algorithm for API rate limit compliance
+- **Error Handling**: Comprehensive error logging and event emission
+- **Update Throttling**: UI updates limited to 10 updates/second per market
+
+### Supported Exchanges
+
+- **Binance**: Fully implemented with both REST and WebSocket
+- Other exchanges can be added using the same adapter pattern
+
+### How to Use
+
+#### In React Components
+
+```tsx
+import { useCrypto } from '../contexts/crypto-context';
+
+function MyComponent() {
+  const { 
+    priceData, 
+    subscribeToSymbol, 
+    unsubscribeFromSymbol 
+  } = useCrypto();
+  
+  useEffect(() => {
+    // Subscribe to a symbol
+    subscribeToSymbol('BTC-USDT');
+    
+    return () => {
+      // Unsubscribe when component unmounts
+      unsubscribeFromSymbol('BTC-USDT');
+    };
+  }, []);
+  
+  return (
+    <div>
+      {priceData.map(data => (
+        <div key={`${data.exchange}-${data.pair}`}>
+          {data.exchange}: {data.price}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+#### Running the Arbitrage Detector
+
+A standalone arbitrage detector is included that monitors multiple exchanges for price differences:
+
+```bash
+# Install required dependencies
+npm install ts-node typescript -g
+
+# Run with default symbols (BTC-USDT, ETH-USDT, SOL-USDT, BNB-USDT)
+npm run arbitrage
+
+# Or specify symbols to monitor
+npm run arbitrage BTC-USDT ETH-USDT
+```
+
+### Adding New Exchange Adapters
+
+To add support for a new exchange:
+
+1. Create a new file in `src/adapters` (e.g., `coinbase-adapter.ts`)
+2. Extend the `BaseExchangeAdapter` class
+3. Implement required methods for the exchange
+4. Register the adapter in `exchange-manager.ts`
+
+Detailed instructions can be found in `src/adapters/README.md`.

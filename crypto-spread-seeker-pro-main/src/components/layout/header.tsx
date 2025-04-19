@@ -325,16 +325,16 @@ export function Header({ sidebarToggle }: HeaderProps) {
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/profile">Profile</Link>
+              <Link to="/profile" className="w-full cursor-pointer">Profile</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/settings">Settings</Link>
+              <Link to="/settings" className="w-full cursor-pointer">Settings</Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={navigateToSettingsBilling}>
+            <DropdownMenuItem onClick={navigateToSettingsBilling} className="cursor-pointer">
               Billing
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Log out</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">Log out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ExchangeVolume } from "@/contexts/crypto-context";
+import { useState, useEffect } from "react";
+import { ExchangeVolume, Exchange } from "@/contexts/crypto-context";
 import {
   BarChart,
   Bar,
@@ -31,11 +31,21 @@ import {
 import { BarChart3, PieChart as PieChartIcon, ListFilter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { exchanges as exchangesConfig } from "@/constants/exchanges";
 
 type ExchangeVolumeChartProps = {
   data: ExchangeVolume[];
   className?: string;
 };
+
+// Type for chart data items
+interface ChartDataItem {
+  id: string;
+  name: string; // Using string instead of Exchange since we need to include "Others"
+  value: number;
+  color: string;
+  logo: string;
+}
 
 // Custom colors for pie chart segments
 const COLORS = [
@@ -46,13 +56,44 @@ const COLORS = [
   "#9334e6", "#a35fec", "#b38af2", "#c3b3f7", "#d4d2fc"
 ];
 
+// Get the list of valid exchange names
+const validExchangeNames = exchangesConfig.map(ex => ex.name) as Exchange[];
+
 export function ExchangeVolumeChart({ data, className }: ExchangeVolumeChartProps) {
   const [chartMetric, setChartMetric] = useState<"volume24h" | "change24h" | "pairCount">("volume24h");
   const [chartType, setChartType] = useState<"bar" | "pie">("bar");
   const [displayCount, setDisplayCount] = useState<number>(15);
+  const [normalizedData, setNormalizedData] = useState<ExchangeVolume[]>(data);
+  
+  // Ensure data includes all exchanges from the constants
+  useEffect(() => {
+    // Create a map of current data by exchange name
+    const dataMap = data.reduce((acc, item) => {
+      acc[item.exchange] = item;
+      return acc;
+    }, {} as Record<string, ExchangeVolume>);
+    
+    // Add any missing exchanges with default values
+    const enhancedData = [...data];
+    
+    // Only add exchanges that are in our valid Exchange type
+    exchangesConfig.forEach(exchange => {
+      // Check if the exchange name is a valid Exchange type
+      if (validExchangeNames.includes(exchange.name as Exchange) && !dataMap[exchange.name as Exchange]) {
+        enhancedData.push({
+          exchange: exchange.name as Exchange,
+          volume24h: 0,
+          change24h: 0,
+          pairCount: 0,
+        });
+      }
+    });
+    
+    setNormalizedData(enhancedData);
+  }, [data]);
   
   // Sort data by the selected metric
-  const sortedData = [...data]
+  const sortedData = [...normalizedData]
     .sort((a, b) => 
       chartMetric === "change24h" 
         ? b[chartMetric] - a[chartMetric] 
@@ -66,15 +107,26 @@ export function ExchangeVolumeChart({ data, className }: ExchangeVolumeChartProp
   const otherExchanges = sortedData.slice(displayCount);
   
   // Format data for the chart
-  const chartData = topExchanges.map((item, index) => ({
-    name: item.exchange,
-    value: chartMetric === "volume24h" 
-      ? item.volume24h / 1000000 // Convert to millions
-      : chartMetric === "change24h"
-      ? item.change24h
-      : item.pairCount,
-    color: COLORS[index % COLORS.length],
-  }));
+  const chartData: ChartDataItem[] = topExchanges.map((item, index) => {
+    // Find the corresponding exchange for logo
+    const exchangeInfo = exchangesConfig.find(ex => ex.name === item.exchange) || {
+      id: item.exchange.toLowerCase(),
+      name: item.exchange,
+      logo: ""
+    };
+    
+    return {
+      id: exchangeInfo.id,
+      name: item.exchange,
+      value: chartMetric === "volume24h" 
+        ? item.volume24h / 1000000 // Convert to millions
+        : chartMetric === "change24h"
+        ? item.change24h
+        : item.pairCount,
+      color: COLORS[index % COLORS.length],
+      logo: exchangeInfo.logo
+    };
+  });
 
   // Add "Others" category to pie chart if needed
   if (chartType === "pie" && otherExchanges.length > 0) {
@@ -86,24 +138,42 @@ export function ExchangeVolumeChart({ data, className }: ExchangeVolumeChartProp
         : item.pairCount), 0);
         
     chartData.push({
-      name: "Others",
+      id: "others",
+      name: "Others", // This is a string, not an Exchange type
       value: otherValue,
       color: "#9e9e9e",
+      logo: ""
     });
   }
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload;
       return (
         <div className="bg-card border border-border p-2 rounded-md shadow-sm text-sm">
-          <p className="font-medium">{payload[0].name}</p>
+          <div className="flex items-center gap-2 mb-1">
+            {data.logo && (
+              <div className="w-4 h-4 flex items-center justify-center overflow-hidden rounded-sm bg-card">
+                <img 
+                  src={data.logo} 
+                  alt={data.name} 
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    // Fallback if image fails to load
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <p className="font-medium">{data.name}</p>
+          </div>
           <p className="crypto-mono">
             {chartMetric === "volume24h" 
-              ? `$${payload[0].value?.toFixed(1)}M` 
+              ? `$${data.value?.toFixed(1)}M` 
               : chartMetric === "change24h"
-              ? `${payload[0].value?.toFixed(2)}%`
-              : payload[0].value?.toString()}
+              ? `${data.value?.toFixed(2)}%`
+              : data.value?.toString()}
           </p>
         </div>
       );

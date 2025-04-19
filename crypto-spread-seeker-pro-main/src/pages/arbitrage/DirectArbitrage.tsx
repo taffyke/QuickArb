@@ -62,8 +62,9 @@ import { useNavigate } from "react-router-dom";
 // Mock data for development since imported module is not available
 const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 15 }, (_, i) => {
   const mockExchanges: Exchange[] = [
-    'Binance', 'Coinbase', 'Kraken', 'KuCoin', 'Bitfinex', 
-    'Huobi', 'FTX', 'Bybit', 'OKX', 'Gemini'
+    'Binance', 'Bitget', 'Bybit', 'KuCoin', 'Gate.io', 
+    'Bitfinex', 'Gemini', 'Coinbase', 'Kraken', 'Poloniex',
+    'OKX', 'AscendEX', 'Bittrue', 'HTX', 'MEXC'
   ];
   
   const fromExchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];

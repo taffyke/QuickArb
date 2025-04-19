@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ import {
   LayoutList,
   LayoutGrid
 } from "lucide-react";
+import { exchanges } from "@/constants/exchanges";
+import { Exchange } from "@/contexts/crypto-context";
 
 // Interface for Exchange data
 interface ExchangeData {
@@ -61,169 +63,57 @@ interface ExchangeData {
   supportedNetworks: string[];
 }
 
+// Create exchange data from our constants file
+const generateExchangeData = (): ExchangeData[] => {
+  return exchanges.map(exchange => ({
+    id: exchange.id,
+    name: exchange.name,
+    logo: exchange.logo,
+    tradingVolume24h: Math.random() * 28000000000 + 1000000000, // Random volume between 1B and 29B
+    supportedCoins: Math.floor(Math.random() * 300) + 100,
+    tradingPairs: Math.floor(Math.random() * 1500) + 100,
+    makerFee: Math.random() * 0.4,
+    takerFee: Math.random() * 0.5 + 0.1,
+    withdrawalFee: {
+      BTC: Math.random() * 0.0007,
+      ETH: Math.random() * 0.007,
+      USDT: Math.random() * 2 + 1
+    },
+    supportsFiat: exchange.supportsFiat,
+    supportsMargin: exchange.supportsMargin,
+    supportsFutures: exchange.supportsFutures,
+    kycRequired: Math.random() > 0.2, // Most require KYC
+    availableIn: exchange.regions,
+    features: [
+      "Staking", 
+      "Launchpad", 
+      "Earn", 
+      "Lending", 
+      "P2P Trading", 
+      "Copy Trading", 
+      "Futures", 
+      "NFT Marketplace"
+    ].filter(() => Math.random() > 0.5), // Randomly select some features
+    arbitragePotential: {
+      score: Math.random() * 9 + 1, // Score between 1-10
+      opportunitiesCount: Math.floor(Math.random() * 200),
+      averageSpread: Math.random() * 2,
+      topSpread: Math.random() * 5
+    },
+    supportedNetworks: [
+      "Ethereum", 
+      "BSC", 
+      "Solana", 
+      "Polygon", 
+      "Avalanche", 
+      "Arbitrum", 
+      "Optimism"
+    ].filter(() => Math.random() > 0.4) // Randomly select some networks
+  }));
+};
+
 // Mock exchange data - in a real app, this would come from an API
-const exchangesData: ExchangeData[] = [
-  {
-    id: "binance",
-    name: "Binance",
-    logo: "/exchanges/binance.png",
-    tradingVolume24h: 28500000000,
-    supportedCoins: 380,
-    tradingPairs: 1542,
-    makerFee: 0.1,
-    takerFee: 0.1,
-    withdrawalFee: {
-      BTC: 0.0005,
-      ETH: 0.005,
-      USDT: 1
-    },
-    supportsFiat: true,
-    supportsMargin: true,
-    supportsFutures: true,
-    kycRequired: true,
-    availableIn: {
-      us: false,
-      eu: true,
-      asia: true
-    },
-    features: ["Staking", "Launchpad", "Earn", "Lending", "P2P Trading"],
-    arbitragePotential: {
-      score: 9.2,
-      opportunitiesCount: 187,
-      averageSpread: 1.8,
-      topSpread: 4.9
-    },
-    supportedNetworks: ["Ethereum", "BSC", "Solana", "Polygon", "Avalanche", "Arbitrum", "Optimism"]
-  },
-  {
-    id: "coinbase",
-    name: "Coinbase",
-    logo: "/exchanges/coinbase.png",
-    tradingVolume24h: 9200000000,
-    supportedCoins: 230,
-    tradingPairs: 540,
-    makerFee: 0.4,
-    takerFee: 0.6,
-    withdrawalFee: {
-      BTC: 0.0001,
-      ETH: 0.003,
-      USDT: 2.5
-    },
-    supportsFiat: true,
-    supportsMargin: false,
-    supportsFutures: false,
-    kycRequired: true,
-    availableIn: {
-      us: true,
-      eu: true,
-      asia: true
-    },
-    features: ["Staking", "Learn to Earn", "Wallet"],
-    arbitragePotential: {
-      score: 7.5,
-      opportunitiesCount: 92,
-      averageSpread: 1.3,
-      topSpread: 3.7
-    },
-    supportedNetworks: ["Ethereum", "Solana", "Polygon", "Avalanche"]
-  },
-  {
-    id: "okx",
-    name: "OKX",
-    logo: "/exchanges/okx.png",
-    tradingVolume24h: 7800000000,
-    supportedCoins: 310,
-    tradingPairs: 920,
-    makerFee: 0.08,
-    takerFee: 0.1,
-    withdrawalFee: {
-      BTC: 0.0004,
-      ETH: 0.004,
-      USDT: 1.2
-    },
-    supportsFiat: true,
-    supportsMargin: true,
-    supportsFutures: true,
-    kycRequired: true,
-    availableIn: {
-      us: false,
-      eu: true,
-      asia: true
-    },
-    features: ["Mining Pool", "DeFi", "NFT Marketplace", "Earn"],
-    arbitragePotential: {
-      score: 8.7,
-      opportunitiesCount: 152,
-      averageSpread: 1.6,
-      topSpread: 4.3
-    },
-    supportedNetworks: ["Ethereum", "OKC", "Solana", "Polygon", "Arbitrum"]
-  },
-  {
-    id: "kraken",
-    name: "Kraken",
-    logo: "/exchanges/kraken.png",
-    tradingVolume24h: 4200000000,
-    supportedCoins: 185,
-    tradingPairs: 540,
-    makerFee: 0.16,
-    takerFee: 0.26,
-    withdrawalFee: {
-      BTC: 0.0002,
-      ETH: 0.0015,
-      USDT: 2.5
-    },
-    supportsFiat: true,
-    supportsMargin: true,
-    supportsFutures: true,
-    kycRequired: true,
-    availableIn: {
-      us: true,
-      eu: true,
-      asia: true
-    },
-    features: ["Staking", "OTC Trading", "Futures"],
-    arbitragePotential: {
-      score: 7.9,
-      opportunitiesCount: 108,
-      averageSpread: 1.5,
-      topSpread: 3.8
-    },
-    supportedNetworks: ["Ethereum", "Polkadot", "Cosmos", "Kusama"]
-  },
-  {
-    id: "bybit",
-    name: "Bybit",
-    logo: "/exchanges/bybit.png",
-    tradingVolume24h: 6300000000,
-    supportedCoins: 280,
-    tradingPairs: 820,
-    makerFee: 0.1,
-    takerFee: 0.1,
-    withdrawalFee: {
-      BTC: 0.0006,
-      ETH: 0.006,
-      USDT: 1.5
-    },
-    supportsFiat: true,
-    supportsMargin: true,
-    supportsFutures: true,
-    kycRequired: true,
-    availableIn: {
-      us: false,
-      eu: true,
-      asia: true
-    },
-    features: ["Copy Trading", "Earn", "Launchpad", "NFT Marketplace"],
-    arbitragePotential: {
-      score: 8.4,
-      opportunitiesCount: 131,
-      averageSpread: 1.7,
-      topSpread: 4.5
-    },
-    supportedNetworks: ["Ethereum", "BSC", "Arbitrum", "Solana", "Optimism"]
-  }
-];
+const exchangesData: ExchangeData[] = generateExchangeData();
 
 // Props interface
 interface ExchangeComparisonProps {
@@ -231,8 +121,11 @@ interface ExchangeComparisonProps {
 }
 
 export function ExchangeComparison({ lastUpdated }: ExchangeComparisonProps) {
-  const [exchanges, setExchanges] = useState<ExchangeData[]>(exchangesData);
-  const [filteredExchanges, setFilteredExchanges] = useState<ExchangeData[]>(exchangesData);
+  // Use useMemo to generate the exchange data once on component mount
+  const initialExchangesData = useMemo(() => generateExchangeData(), []);
+  
+  const [exchangesData, setExchangesData] = useState<ExchangeData[]>(initialExchangesData);
+  const [filteredExchanges, setFilteredExchanges] = useState<ExchangeData[]>(initialExchangesData);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<keyof ExchangeData | "arbitragePotential.score">("tradingVolume24h");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -249,80 +142,58 @@ export function ExchangeComparison({ lastUpdated }: ExchangeComparisonProps) {
     maxMakerFee: 0.5
   });
   
-  // Apply filters and sorting with performance optimizations
+  // Apply filters and search whenever dependencies change
   useEffect(() => {
-    // Debounce filter application for better performance
-    const timer = setTimeout(() => {
-      setLoading(true);
-      
-      try {
-        let filtered = [...exchanges];
-        
-        // Apply search filter
-        if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase().trim();
-          filtered = filtered.filter(
-            exchange => exchange.name.toLowerCase().includes(query) || 
-                        exchange.id.toLowerCase().includes(query)
-          );
-        }
-        
-        // Apply feature filters
-        if (filters.supportsFiat) {
-          filtered = filtered.filter(exchange => exchange.supportsFiat);
-        }
-        if (filters.supportsMargin) {
-          filtered = filtered.filter(exchange => exchange.supportsMargin);
-        }
-        if (filters.supportsFutures) {
-          filtered = filtered.filter(exchange => exchange.supportsFutures);
-        }
-        if (filters.minArbitrageScore > 0) {
-          filtered = filtered.filter(exchange => exchange.arbitragePotential.score >= filters.minArbitrageScore);
-        }
-        if (filters.minTradingPairs > 0) {
-          filtered = filtered.filter(exchange => exchange.tradingPairs >= filters.minTradingPairs);
-        }
-        if (filters.maxMakerFee < 0.5) {
-          filtered = filtered.filter(exchange => exchange.makerFee <= filters.maxMakerFee);
-        }
-        
-        // Apply region filters - only if at least one region is selected
-        if (selectedRegions.length > 0) {
-          filtered = filtered.filter(exchange => {
-            if (selectedRegions.includes("us") && exchange.availableIn.us) return true;
-            if (selectedRegions.includes("eu") && exchange.availableIn.eu) return true;
-            if (selectedRegions.includes("asia") && exchange.availableIn.asia) return true;
-            return false;
-          });
-        }
-        
-        // Apply sorting
-        filtered.sort((a, b) => {
-          let aValue: any;
-          let bValue: any;
-          
-          if (sortBy === "arbitragePotential.score") {
-            aValue = a.arbitragePotential.score;
-            bValue = b.arbitragePotential.score;
-          } else {
-            aValue = a[sortBy as keyof ExchangeData];
-            bValue = b[sortBy as keyof ExchangeData];
-          }
-          
-          // Handle numeric comparison
-          const multiplier = sortOrder === "asc" ? 1 : -1;
-          return (aValue - bValue) * multiplier;
-        });
-        
-        setFilteredExchanges(filtered);
-      } finally {
-        setLoading(false);
-      }
-    }, 200); // Debounce by 200ms
+    let results = [...exchangesData];
     
-    return () => clearTimeout(timer);
-  }, [exchanges, searchQuery, sortBy, sortOrder, filters, selectedRegions]);
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      results = results.filter(exchange => 
+        exchange.name.toLowerCase().includes(query) ||
+        exchange.features.some(feature => feature.toLowerCase().includes(query))
+      );
+    }
+    
+    // Apply region filter
+    if (selectedRegions.length > 0) {
+      results = results.filter(exchange => 
+        (selectedRegions.includes("us") && exchange.availableIn.us) ||
+        (selectedRegions.includes("eu") && exchange.availableIn.eu) ||
+        (selectedRegions.includes("asia") && exchange.availableIn.asia)
+      );
+    }
+    
+    // Apply advanced filters
+    if (filters.supportsFiat) {
+      results = results.filter(exchange => exchange.supportsFiat);
+    }
+    
+    if (filters.supportsMargin) {
+      results = results.filter(exchange => exchange.supportsMargin);
+    }
+    
+    if (filters.supportsFutures) {
+      results = results.filter(exchange => exchange.supportsFutures);
+    }
+    
+    if (filters.minArbitrageScore > 0) {
+      results = results.filter(exchange => exchange.arbitragePotential.score >= filters.minArbitrageScore);
+    }
+    
+    if (filters.minTradingPairs > 0) {
+      results = results.filter(exchange => exchange.tradingPairs >= filters.minTradingPairs);
+    }
+    
+    if (filters.maxMakerFee < 0.5) {
+      results = results.filter(exchange => exchange.makerFee <= filters.maxMakerFee);
+    }
+    
+    // Sort results
+    results = sortExchanges(results, sortBy, sortOrder);
+    
+    setFilteredExchanges(results);
+  }, [exchangesData, searchQuery, selectedRegions, filters, sortBy, sortOrder]);
   
   // Reset all filters
   const resetFilters = () => {
@@ -788,10 +659,32 @@ export function ExchangeComparison({ lastUpdated }: ExchangeComparisonProps) {
         )}
         
         <CardFooter className="py-3 justify-between text-xs text-muted-foreground border-t">
-          <div>Showing {filteredExchanges.length} of {exchanges.length} exchanges</div>
+          <div>Showing {filteredExchanges.length} of {exchangesData.length} exchanges</div>
           <div>Last updated: {lastUpdated.toLocaleTimeString()}</div>
         </CardFooter>
       </Card>
     </div>
   );
-} 
+}
+
+// Function to sort exchanges
+const sortExchanges = (data: ExchangeData[], sortField: string, order: "asc" | "desc"): ExchangeData[] => {
+  return [...data].sort((a, b) => {
+    // Handle nested properties like arbitragePotential.score
+    if (sortField === "arbitragePotential.score") {
+      const valueA = a.arbitragePotential.score;
+      const valueB = b.arbitragePotential.score;
+      return order === "asc" ? valueA - valueB : valueB - valueA;
+    }
+
+    // Regular properties
+    const valueA = a[sortField as keyof ExchangeData];
+    const valueB = b[sortField as keyof ExchangeData];
+    
+    if (typeof valueA === 'number' && typeof valueB === 'number') {
+      return order === "asc" ? valueA - valueB : valueB - valueA;
+    }
+    
+    return 0;
+  });
+}; 

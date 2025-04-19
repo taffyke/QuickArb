@@ -94,6 +94,42 @@ export function FuturesOpportunityCard({
       case 'OKX':
         url = `https://www.okx.com/trade-swap/${pair.replace('/', '-').toLowerCase()}-swap`;
         break;
+      case 'Bitget':
+        url = `https://www.bitget.com/en/futures/${pair.replace('/', '')}USDT`;
+        break;
+      case 'KuCoin':
+        url = `https://www.kucoin.com/futures/trade/${pair.replace('/', '-')}`;
+        break;
+      case 'Gate.io':
+        url = `https://www.gate.io/futures_trade/${pair.replace('/', '_')}`;
+        break;
+      case 'Bitfinex':
+        url = `https://trading.bitfinex.com/t/${pair.replace('/', '')}:USD`;
+        break;
+      case 'Gemini':
+        url = `https://exchange.gemini.com/trade/${pair.replace('/', '')}`;
+        break;
+      case 'Coinbase':
+        url = `https://pro.coinbase.com/trade/${pair.replace('/', '-')}`;
+        break;
+      case 'Kraken':
+        url = `https://futures.kraken.com/futures/PI_${pair.split('/')[0]}USD`;
+        break;
+      case 'Poloniex':
+        url = `https://poloniex.com/futures/FUTURES_${pair.replace('/', '_')}`;
+        break;
+      case 'AscendEX':
+        url = `https://ascendex.com/en/futures/trade/${pair.replace('/', '-')}`;
+        break;
+      case 'Bittrue':
+        url = `https://www.bitrue.com/trade/${pair.replace('/', '_').toLowerCase()}`;
+        break;
+      case 'HTX':
+        url = `https://www.htx.com/en-us/futures/exchange/${pair.replace('/', '')}`;
+        break;
+      case 'MEXC':
+        url = `https://www.mexc.com/futures/exchange/${pair.replace('/', '_')}`;
+        break;
       default:
         url = `https://${exchange.toLowerCase()}.com`;
     }
@@ -248,13 +284,17 @@ export function FuturesOpportunityCard({
         {expanded ? (
           <Button size="sm" className="w-full" onClick={handleExecute}>
             <DollarSign className="mr-2 h-4 w-4" />
-            Execute
+            Execute Arbitrage
           </Button>
         ) : (
-          <div className="flex justify-center w-full text-xs text-muted-foreground">
-            <ChevronDown className="h-4 w-4 mr-1" />
-            <span>Click for details</span>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="w-full text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <span>Click for more details</span>
+            <ChevronDown className="h-4 w-4 transition-transform" />
+          </Button>
         )}
       </CardFooter>
     </Card>

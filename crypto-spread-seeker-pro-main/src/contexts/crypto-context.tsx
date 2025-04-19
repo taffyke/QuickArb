@@ -3,20 +3,20 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 // Types for our context
 export type Exchange = 
   | 'Binance'
+  | 'Bitget'
+  | 'Bybit'
+  | 'KuCoin'
+  | 'Gate.io'
+  | 'Bitfinex'
+  | 'Gemini'
   | 'Coinbase'
   | 'Kraken'
-  | 'KuCoin'
-  | 'Bitfinex'
-  | 'Huobi'
-  | 'FTX'
-  | 'Bybit'
-  | 'OKX'
-  | 'Gemini'
-  | 'Bitstamp'
-  | 'Gate.io'
-  | 'Bittrex'
   | 'Poloniex'
-  | 'BitMart';
+  | 'OKX'
+  | 'AscendEX'
+  | 'Bittrue'
+  | 'HTX'
+  | 'MEXC';
 
 export type CryptoPair = {
   symbol: string;
@@ -107,9 +107,9 @@ export type ExchangeVolume = {
 
 // Mock data for now
 const mockExchanges: Exchange[] = [
-  'Binance', 'Coinbase', 'Kraken', 'KuCoin', 'Bitfinex', 
-  'Huobi', 'FTX', 'Bybit', 'OKX', 'Gemini', 
-  'Bitstamp', 'Gate.io', 'Bittrex', 'Poloniex', 'BitMart'
+  'Binance', 'Bitget', 'Bybit', 'KuCoin', 'Gate.io', 
+  'Bitfinex', 'Gemini', 'Coinbase', 'Kraken', 'Poloniex', 
+  'OKX', 'AscendEX', 'Bittrue', 'HTX', 'MEXC'
 ];
 
 const mockPriceData: PriceData[] = mockExchanges.map(exchange => ({

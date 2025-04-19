@@ -248,171 +248,89 @@ export default function FuturesArbitrage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Futures Arbitrage</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <ChevronsUpDown className="h-6 w-6 text-primary" />
+            Futures Arbitrage
+          </h1>
           <p className="text-muted-foreground">
-            Spot-Futures price differences and funding rate opportunities
+            Spot-futures arbitrage opportunities across exchanges
           </p>
         </div>
-        
-        <div className="flex space-x-2 mt-4 md:mt-0">
-          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleRefresh} disabled={loading}>
-            <RefreshCcw className="h-3.5 w-3.5" />
-            {loading ? "Refreshing..." : "Refresh"}
+        <div className="flex items-center gap-2 mt-4 md:mt-0">
+          <Button onClick={handleRefresh} className="gap-2" disabled={loading}>
+            <RefreshCcw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh
           </Button>
-          
-          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleSetAlert}>
-            <Bell className="h-3.5 w-3.5" />
-            Alerts
+          <Button variant="outline" onClick={handleSetAlert} className="gap-2">
+            <Bell className="h-4 w-4" />
+            Set Alert
           </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn("h-8 gap-1", showAdvancedFilters && "border-primary text-primary")}
-            onClick={handleAdvancedFiltersToggle}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-          </Button>
-          
-          <div className="border rounded-md flex">
-            <Toggle 
-              pressed={viewMode === "grid"} 
-              onPressedChange={() => setViewMode("grid")}
-              size="sm"
-              className="h-8 px-2 rounded-none rounded-l-md"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-            </Toggle>
-            <Toggle 
-              pressed={viewMode === "list"} 
-              onPressedChange={() => setViewMode("list")}
-              size="sm"
-              className="h-8 px-2 rounded-none rounded-r-md"
-            >
-              <List className="h-3.5 w-3.5" />
-            </Toggle>
-          </div>
         </div>
       </div>
-
-      <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
-        <div className="md:w-3/4">
-          <div className="flex flex-col space-y-4 lg:flex-row lg:space-y-0 lg:space-x-4">
-            <div className="flex-1">
+      
+      <Tabs defaultValue="all" value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <TabsList className="grid grid-cols-4 w-full sm:w-auto mb-2 sm:mb-0">
+            <TabsTrigger value="all" className="flex items-center gap-1">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="premium" className="flex items-center gap-1 text-green-500">
+              <ArrowUpCircle className="h-4 w-4" />
+              Premium
+            </TabsTrigger>
+            <TabsTrigger value="discount" className="flex items-center gap-1 text-red-500">
+              <ArrowDownCircle className="h-4 w-4" />
+              Discount
+            </TabsTrigger>
+            <TabsTrigger value="funding" className="flex items-center gap-1 text-blue-500">
+              <Percent className="h-4 w-4" />
+              Funding
+            </TabsTrigger>
+          </TabsList>
+          
+          <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by pair or exchange..."
+                type="search"
+                placeholder="Search pairs or exchanges..."
+                className="pl-8 w-full sm:w-[200px] lg:w-[300px]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9"
-                prefix={<Search className="h-4 w-4 text-muted-foreground" />}
               />
             </div>
             
-            <div className="flex space-x-2">
-              <Select value={selectedExchange as string} onValueChange={(value) => setSelectedExchange(value as Exchange | "all")}>
-                <SelectTrigger className="h-9 w-[180px]">
-                  <SelectValue placeholder="Exchange" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Exchanges</SelectItem>
-                  {exchanges.map((exchange) => (
-                    <SelectItem key={exchange} value={exchange}>
-                      {exchange}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <div className="flex space-x-1 items-center">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-9 w-9" 
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                >
-                  {sortOrder === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-                </Button>
-                
-                <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
-                  <SelectTrigger className="h-9 w-[130px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="spreadPercent">Spread %</SelectItem>
-                    <SelectItem value="fundingRate">Funding Rate</SelectItem>
-                    <SelectItem value="timestamp">Timestamp</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex gap-2">
+              <Toggle
+                variant="outline" 
+                pressed={viewMode === "grid"} 
+                onPressedChange={() => setViewMode("grid")}
+                className="px-2 data-[state=on]:bg-accent"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Toggle>
+              <Toggle
+                variant="outline" 
+                pressed={viewMode === "list"} 
+                onPressedChange={() => setViewMode("list")}
+                className="px-2 data-[state=on]:bg-accent"
+              >
+                <List className="h-4 w-4" />
+              </Toggle>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleAdvancedFiltersToggle}
+                className={cn(showAdvancedFilters && "bg-accent")}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          
-          {/* Advanced filters */}
-          {showAdvancedFilters && (
-            <div className="bg-card border rounded-md p-4 mt-4 space-y-4">
-              <div className="flex flex-col space-y-1">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="min-spread">Min. Spread: {minSpread}%</Label>
-                </div>
-                <div className="px-1">
-                  <Slider 
-                    id="min-spread"
-                    defaultValue={[minSpread]} 
-                    min={0} 
-                    max={2} 
-                    step={0.1} 
-                    onValueChange={(value) => setMinSpread(value[0])}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="investment-amount">Investment Amount ($)</Label>
-                  <Input 
-                    id="investment-amount"
-                    type="number" 
-                    value={investmentAmount} 
-                    onChange={(e) => setInvestmentAmount(Number(e.target.value))}
-                  />
-                </div>
-                
-                <div className="space-y-1">
-                  <Label htmlFor="min-profit">Min. Profit ($)</Label>
-                  <Input 
-                    id="min-profit"
-                    type="number" 
-                    value={minProfit} 
-                    onChange={(e) => setMinProfit(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Opportunity tabs */}
-          <div className="mt-4">
-            <Tabs defaultValue="all" value={selectedTab} onValueChange={setSelectedTab}>
-              <TabsList className="w-full">
-                <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
-                <TabsTrigger value="premium" className="flex-1">
-                  <ArrowUpCircle className="h-4 w-4 mr-2" />
-                  Premium <Badge variant="outline" className="ml-2 bg-green-500/10 text-green-500">{futuresOpportunities.filter(o => o.spreadPercent > 0).length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="discount" className="flex-1">
-                  <ArrowDownCircle className="h-4 w-4 mr-2" />
-                  Discount <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-500">{futuresOpportunities.filter(o => o.spreadPercent < 0).length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="funding" className="flex-1">
-                  <Percent className="h-4 w-4 mr-2" />
-                  Funding <Badge variant="outline" className="ml-2 bg-purple-500/10 text-purple-500">{futuresOpportunities.filter(o => Math.abs(o.fundingRate) >= 0.0001).length}</Badge>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          
-          {/* Opportunities */}
+        </div>
+
+        <TabsContent value="all" className="mt-0">
+          {/* All opportunities content */}
           <div className={cn(
             "mt-4 grid gap-4",
             viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2" : "grid-cols-1"
@@ -445,78 +363,183 @@ export default function FuturesArbitrage() {
               </div>
             )}
           </div>
-        </div>
-        
-        {/* Right sidebar */}
-        <div className="md:w-1/4 space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Market Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">Last Updated</div>
-                <div className="flex items-center">
-                  <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <span>{lastRefreshed.toLocaleTimeString()}</span>
+        </TabsContent>
+        <TabsContent value="premium" className="mt-0">
+          {/* Premium opportunities content - filtered to show only premium opportunities */}
+          <div className={cn(
+            "mt-4 grid gap-4",
+            viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2" : "grid-cols-1"
+          )}>
+            {filteredOpportunities.length > 0 ? (
+              filteredOpportunities.map((opportunity) => (
+                <div 
+                  key={`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                  onClick={() => toggleExpandOpportunity(`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`)}
+                  className="cursor-pointer"
+                >
+                  <FuturesOpportunityCard 
+                    opportunity={opportunity}
+                    expanded={expandedOpportunity === `${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                    onExecute={executeViaArbitrageBot}
+                  />
                 </div>
+              ))
+            ) : (
+              <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                <ChevronsUpDown className="h-12 w-12 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No premium opportunities found</h3>
+                <p className="text-muted-foreground mt-2 max-w-xs">
+                  Try adjusting your filters or refreshing to find futures premium arbitrage opportunities.
+                </p>
+                <Button className="mt-4" onClick={handleRefresh}>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Refresh Data
+                </Button>
               </div>
-              
-              <Separator />
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-muted-foreground">Total Opportunities</div>
-                  <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="discount" className="mt-0">
+          {/* Discount opportunities content - filtered to show only discount opportunities */}
+          <div className={cn(
+            "mt-4 grid gap-4",
+            viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2" : "grid-cols-1"
+          )}>
+            {filteredOpportunities.length > 0 ? (
+              filteredOpportunities.map((opportunity) => (
+                <div 
+                  key={`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                  onClick={() => toggleExpandOpportunity(`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`)}
+                  className="cursor-pointer"
+                >
+                  <FuturesOpportunityCard 
+                    opportunity={opportunity}
+                    expanded={expandedOpportunity === `${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                    onExecute={executeViaArbitrageBot}
+                  />
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Top Spread</div>
-                  <div className="text-2xl font-bold">
-                    {filteredOpportunities.length > 0 
-                      ? `${Math.abs(filteredOpportunities[0].spreadPercent).toFixed(2)}%` 
-                      : '0.00%'}
-                  </div>
-                </div>
+              ))
+            ) : (
+              <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                <ChevronsUpDown className="h-12 w-12 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No discount opportunities found</h3>
+                <p className="text-muted-foreground mt-2 max-w-xs">
+                  Try adjusting your filters or refreshing to find futures discount arbitrage opportunities.
+                </p>
+                <Button className="mt-4" onClick={handleRefresh}>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Refresh Data
+                </Button>
               </div>
-              
-              <Separator />
-              
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="funding" className="mt-0">
+          {/* Funding opportunities content - filtered to show only funding opportunities */}
+          <div className={cn(
+            "mt-4 grid gap-4",
+            viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2" : "grid-cols-1"
+          )}>
+            {filteredOpportunities.length > 0 ? (
+              filteredOpportunities.map((opportunity) => (
+                <div 
+                  key={`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                  onClick={() => toggleExpandOpportunity(`${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`)}
+                  className="cursor-pointer"
+                >
+                  <FuturesOpportunityCard 
+                    opportunity={opportunity}
+                    expanded={expandedOpportunity === `${opportunity.exchange}-${opportunity.pair}-${opportunity.timestamp.getTime()}`}
+                    onExecute={executeViaArbitrageBot}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                <ChevronsUpDown className="h-12 w-12 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No funding opportunities found</h3>
+                <p className="text-muted-foreground mt-2 max-w-xs">
+                  Try adjusting your filters or refreshing to find futures funding arbitrage opportunities.
+                </p>
+                <Button className="mt-4" onClick={handleRefresh}>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Refresh Data
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+      
+      {/* Right sidebar */}
+      <div className="md:w-1/4 space-y-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Market Stats</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Last Updated</div>
+              <div className="flex items-center">
+                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>{lastRefreshed.toLocaleTimeString()}</span>
+              </div>
+            </div>
+            
+            <Separator />
+            
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-xs text-muted-foreground mb-2">Top Exchanges</div>
-                <div className="space-y-2">
-                  {exchanges.slice(0, 3).map((exchange) => (
-                    <div key={exchange} className="flex justify-between items-center">
-                      <span>{exchange}</span>
-                      <Badge variant="outline">{
-                        filteredOpportunities.filter(o => o.exchange === exchange).length
-                      }</Badge>
-                    </div>
-                  ))}
+                <div className="text-xs text-muted-foreground">Total Opportunities</div>
+                <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Top Spread</div>
+                <div className="text-2xl font-bold">
+                  {filteredOpportunities.length > 0 
+                    ? `${Math.abs(filteredOpportunities[0].spreadPercent).toFixed(2)}%` 
+                    : '0.00%'}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">What is Futures Arbitrage?</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <p>
-                Futures arbitrage capitalizes on price differences between spot and
-                futures markets for the same asset.
-              </p>
-              <p>
-                Traders can also profit from funding rates, which are periodic payments 
-                between long and short position holders.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Always consider fees, liquidation risks, and market volatility when
-                executing futures arbitrage strategies.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            
+            <Separator />
+            
+            <div>
+              <div className="text-xs text-muted-foreground mb-2">Top Exchanges</div>
+              <div className="space-y-2">
+                {exchanges.slice(0, 3).map((exchange) => (
+                  <div key={exchange} className="flex justify-between items-center">
+                    <span>{exchange}</span>
+                    <Badge variant="outline">{
+                      filteredOpportunities.filter(o => o.exchange === exchange).length
+                    }</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">What is Futures Arbitrage?</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm space-y-2">
+            <p>
+              Futures arbitrage capitalizes on price differences between spot and
+              futures markets for the same asset.
+            </p>
+            <p>
+              Traders can also profit from funding rates, which are periodic payments 
+              between long and short position holders.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Always consider fees, liquidation risks, and market volatility when
+              executing futures arbitrage strategies.
+            </p>
+          </CardContent>
+        </Card>
       </div>
       
       {/* Alert Dialog */}

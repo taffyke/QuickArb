@@ -25,6 +25,7 @@ import {
   X
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { exchanges } from "@/constants/exchanges";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("general");
@@ -50,6 +51,12 @@ export default function Settings() {
     };
   }, [location]);
   
+  // Create initial exchanges state dynamically from the exchanges array
+  const initialExchangesState = exchanges.reduce((acc, exchange) => {
+    acc[exchange.id] = true;
+    return acc;
+  }, {});
+  
   // Settings state
   const [settings, setSettings] = useState({
     theme: "dark",
@@ -65,15 +72,7 @@ export default function Settings() {
       emailNotifications: true,
       desktopNotifications: true,
     },
-    exchanges: {
-      binance: true,
-      coinbase: true,
-      kraken: true,
-      kucoin: true,
-      huobi: false,
-      bybit: true,
-      okx: false,
-    },
+    exchanges: initialExchangesState,
     trading: {
       confirmTrades: true,
       maxSlippage: "1.0",
@@ -490,82 +489,33 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Binance</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
+                  {exchanges.map((exchange) => (
+                    <div key={exchange.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {exchange.logo && (
+                          <div className="w-6 h-6 flex items-center justify-center overflow-hidden rounded-sm bg-card">
+                            <img 
+                              src={exchange.logo} 
+                              alt={exchange.name} 
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // Fallback if image fails to load
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="font-medium">{exchange.name}</h3>
+                          <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
+                        </div>
+                      </div>
+                      <Switch 
+                        checked={settings.exchanges[exchange.id] !== undefined ? settings.exchanges[exchange.id] : true} 
+                        onCheckedChange={(checked) => updateSettings("exchanges", exchange.id, checked)}
+                      />
                     </div>
-                    <Switch 
-                      checked={settings.exchanges.binance} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "binance", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Coinbase</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.coinbase} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "coinbase", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Kraken</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.kraken} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "kraken", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">KuCoin</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.kucoin} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "kucoin", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Huobi</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.huobi} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "huobi", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Bybit</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.bybit} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "bybit", checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">OKX</h3>
-                      <p className="text-sm text-muted-foreground">Include in arbitrage calculation</p>
-                    </div>
-                    <Switch 
-                      checked={settings.exchanges.okx} 
-                      onCheckedChange={(checked) => updateSettings("exchanges", "okx", checked)}
-                    />
-                  </div>
+                  ))}
                   
                   <Separator />
                   

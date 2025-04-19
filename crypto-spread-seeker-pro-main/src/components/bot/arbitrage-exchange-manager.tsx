@@ -84,6 +84,109 @@ const exchanges: ExchangeInfo[] = [
     status: "online"
   },
   {
+    id: "bitget",
+    name: "Bitget",
+    logo: "/exchanges/bitget.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct", "futures"],
+    fees: {
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0006
+    },
+    networks: ["Ethereum", "BSC", "Arbitrum"],
+    status: "offline"
+  },
+  {
+    id: "bybit",
+    name: "Bybit",
+    logo: "/exchanges/bybit.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct", "futures"],
+    fees: {
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0006
+    },
+    networks: ["Ethereum", "Arbitrum", "Optimism"],
+    status: "offline"
+  },
+  {
+    id: "kucoin",
+    name: "KuCoin",
+    logo: "/exchanges/kucoin.png",
+    isConnected: true,
+    isEnabled: false,
+    apiKeyConfigured: true,
+    apiSecretConfigured: true,
+    supportedTypes: ["direct", "triangular", "futures"],
+    fees: {
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0004
+    },
+    networks: ["Ethereum", "KCC", "Polygon"],
+    lastSync: new Date(Date.now() - 20 * 60000), // 20 minutes ago
+    status: "online"
+  },
+  {
+    id: "gateio",
+    name: "Gate.io",
+    logo: "/exchanges/gateio.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct", "p2p"],
+    fees: {
+      maker: 0.2,
+      taker: 0.2,
+      withdrawal: 0.001
+    },
+    networks: ["Ethereum", "BSC"],
+    status: "offline"
+  },
+  {
+    id: "bitfinex",
+    name: "Bitfinex",
+    logo: "/exchanges/bitfinex.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct", "futures"],
+    fees: {
+      maker: 0.1,
+      taker: 0.2,
+      withdrawal: 0.0004
+    },
+    networks: ["Ethereum", "Lightning"],
+    status: "offline"
+  },
+  {
+    id: "gemini",
+    name: "Gemini",
+    logo: "/exchanges/gemini.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct"],
+    fees: {
+      maker: 0.1,
+      taker: 0.35,
+      withdrawal: 0.0005
+    },
+    networks: ["Ethereum"],
+    status: "offline"
+  },
+  {
     id: "coinbase",
     name: "Coinbase",
     logo: "/exchanges/coinbase.png",
@@ -120,38 +223,20 @@ const exchanges: ExchangeInfo[] = [
     status: "online"
   },
   {
-    id: "kucoin",
-    name: "KuCoin",
-    logo: "/exchanges/kucoin.png",
-    isConnected: true,
-    isEnabled: false,
-    apiKeyConfigured: true,
-    apiSecretConfigured: true,
-    supportedTypes: ["direct", "triangular", "futures"],
-    fees: {
-      maker: 0.1,
-      taker: 0.1,
-      withdrawal: 0.0004
-    },
-    networks: ["Ethereum", "KCC", "Polygon"],
-    lastSync: new Date(Date.now() - 20 * 60000), // 20 minutes ago
-    status: "online"
-  },
-  {
-    id: "bybit",
-    name: "Bybit",
-    logo: "/exchanges/bybit.png",
+    id: "poloniex",
+    name: "Poloniex",
+    logo: "/exchanges/poloniex.png",
     isConnected: false,
     isEnabled: false,
     apiKeyConfigured: false,
     apiSecretConfigured: false,
-    supportedTypes: ["direct", "futures"],
+    supportedTypes: ["direct"],
     fees: {
-      maker: 0.1,
-      taker: 0.1,
-      withdrawal: 0.0006
+      maker: 0.15,
+      taker: 0.25,
+      withdrawal: 0.0005
     },
-    networks: ["Ethereum", "Arbitrum", "Optimism"],
+    networks: ["Ethereum", "TRON"],
     status: "offline"
   },
   {
@@ -173,9 +258,43 @@ const exchanges: ExchangeInfo[] = [
     status: "maintenance"
   },
   {
-    id: "huobi",
-    name: "Huobi",
-    logo: "/exchanges/huobi.png",
+    id: "ascendex",
+    name: "AscendEX",
+    logo: "/exchanges/ascendex.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct"],
+    fees: {
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0005
+    },
+    networks: ["Ethereum", "BSC"],
+    status: "offline"
+  },
+  {
+    id: "bittrue",
+    name: "Bittrue",
+    logo: "/exchanges/bittrue.png",
+    isConnected: false,
+    isEnabled: false,
+    apiKeyConfigured: false,
+    apiSecretConfigured: false,
+    supportedTypes: ["direct"],
+    fees: {
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0006
+    },
+    networks: ["Ethereum", "XRP Ledger"],
+    status: "offline"
+  },
+  {
+    id: "htx",
+    name: "HTX",
+    logo: "/exchanges/htx.png",
     isConnected: false,
     isEnabled: false,
     apiKeyConfigured: true,
@@ -190,18 +309,18 @@ const exchanges: ExchangeInfo[] = [
     status: "issues"
   },
   {
-    id: "gateio",
-    name: "Gate.io",
-    logo: "/exchanges/gateio.png",
+    id: "mexc",
+    name: "MEXC",
+    logo: "/exchanges/mexc.png",
     isConnected: false,
     isEnabled: false,
     apiKeyConfigured: false,
     apiSecretConfigured: false,
-    supportedTypes: ["direct", "p2p"],
+    supportedTypes: ["direct", "futures"],
     fees: {
-      maker: 0.2,
-      taker: 0.2,
-      withdrawal: 0.001
+      maker: 0.1,
+      taker: 0.1,
+      withdrawal: 0.0005
     },
     networks: ["Ethereum", "BSC"],
     status: "offline"

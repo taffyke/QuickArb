@@ -20,6 +20,21 @@ import {
   Percent,
   RefreshCw
 } from "lucide-react";
+import { exchanges } from "@/constants/exchanges";
+
+// Generate exchange stats based on the exchanges from constants
+const generateExchangeStats = () => {
+  // Take the top 10 exchanges and generate random stats for them
+  return exchanges.slice(0, 10).map(exchange => ({
+    id: exchange.id,
+    name: exchange.name,
+    logo: exchange.logo,
+    volume24h: (Math.random() * 25 + 3).toFixed(1), // Random volume between 3B and 28B
+    marketShare: (Math.random() * 20 + 1).toFixed(1), // Random share between 1% and 21%
+    change24h: (Math.random() * 10 - 5).toFixed(1), // Random change between -5% and +5%
+    arbitrageOpportunities: Math.floor(Math.random() * 40) + 10 // Random opportunities between 10 and 50
+  })).sort((a, b) => parseFloat(b.volume24h) - parseFloat(a.volume24h)); // Sort by volume descending
+};
 
 // Mock data - in a real app, this would come from an API
 const marketOverviewData = {
@@ -40,24 +55,34 @@ const marketOverviewData = {
     { symbol: "BNB", name: "Binance Coin", price: 568.32, change24h: -0.8 },
     { symbol: "XRP", name: "XRP", price: 0.5231, change24h: -1.5 }
   ],
-  exchangeStats: [
-    { name: "Binance", volume24h: 28.5, marketShare: 22.2, change24h: 1.8 },
-    { name: "Coinbase", volume24h: 9.2, marketShare: 7.2, change24h: -0.5 },
-    { name: "OKX", volume24h: 7.8, marketShare: 6.1, change24h: 3.2 },
-    { name: "Bybit", volume24h: 6.3, marketShare: 4.9, change24h: 5.4 },
-    { name: "Kraken", volume24h: 4.2, marketShare: 3.3, change24h: 0.9 }
-  ]
+  exchangeStats: generateExchangeStats()
 };
 
 // Types for the component props
 interface MarketAnalysisHubProps {
   lastUpdated: Date;
+  onRegisterRefresh?: (refreshFn: () => void) => void;
 }
 
-export function MarketAnalysisHub({ lastUpdated }: MarketAnalysisHubProps) {
+export function MarketAnalysisHub({ lastUpdated, onRegisterRefresh }: MarketAnalysisHubProps) {
   const [timeframe, setTimeframe] = useState<"24h" | "7d" | "30d">("24h");
   const [marketData, setMarketData] = useState(marketOverviewData);
   
+  // Regenerate exchange data on refresh
+  const refreshData = () => {
+    setMarketData({
+      ...marketData,
+      exchangeStats: generateExchangeStats()
+    });
+  };
+
+  // Register the refresh function with the parent component
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(refreshData);
+    }
+  }, [onRegisterRefresh]);
+
   return (
     <div className="space-y-6">
       {/* Market Summary Section */}
@@ -272,7 +297,7 @@ export function MarketAnalysisHub({ lastUpdated }: MarketAnalysisHubProps) {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
             <CardTitle className="text-base font-medium">Top Exchanges by 24h Volume</CardTitle>
-            <Button variant="ghost" size="sm" className="h-8 gap-1">
+            <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={refreshData}>
               <RefreshCw className="h-3.5 w-3.5" />
               <span className="text-xs">Refresh</span>
             </Button>
@@ -293,17 +318,34 @@ export function MarketAnalysisHub({ lastUpdated }: MarketAnalysisHubProps) {
               </thead>
               <tbody>
                 {marketData.exchangeStats.map((exchange, index) => (
-                  <tr key={exchange.name} className="border-b hover:bg-muted/30">
+                  <tr key={exchange.id} className="border-b hover:bg-muted/30">
                     <td className="py-3 text-left">{index + 1}</td>
-                    <td className="py-3 text-left font-medium">{exchange.name}</td>
-                    <td className="py-3 text-right">${exchange.volume24h.toFixed(1)}B</td>
-                    <td className="py-3 text-right">{exchange.marketShare.toFixed(1)}%</td>
-                    <td className={`py-3 text-right ${exchange.change24h >= 0 ? 'text-crypto-green' : 'text-crypto-red'}`}>
-                      {exchange.change24h >= 0 ? '+' : ''}{exchange.change24h}%
+                    <td className="py-3 text-left">
+                      <div className="flex items-center gap-2">
+                        {exchange.logo && (
+                          <div className="w-5 h-5 flex items-center justify-center overflow-hidden rounded-sm bg-card">
+                            <img 
+                              src={exchange.logo} 
+                              alt={exchange.name} 
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // Fallback if image fails to load
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+                        <span className="font-medium">{exchange.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-right">${exchange.volume24h}B</td>
+                    <td className="py-3 text-right">{exchange.marketShare}%</td>
+                    <td className={`py-3 text-right ${parseFloat(exchange.change24h) >= 0 ? 'text-crypto-green' : 'text-crypto-red'}`}>
+                      {parseFloat(exchange.change24h) >= 0 ? '+' : ''}{exchange.change24h}%
                     </td>
                     <td className="py-3 text-right">
                       <Badge variant="outline" className="bg-primary/10 text-primary font-mono">
-                        {Math.floor(Math.random() * 40) + 10}
+                        {exchange.arbitrageOpportunities}
                       </Badge>
                     </td>
                   </tr>

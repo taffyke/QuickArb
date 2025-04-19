@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MarketAnalysisHub } from "@/components/market/market-analysis-hub";
 import { ExchangeComparison } from "@/components/market/exchange-comparison";
 import { ArbitrageInsights } from "@/components/market/arbitrage-insights";
@@ -24,9 +24,25 @@ export default function MarketAnalysisPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
+  // References to child component refresh functions
+  const marketAnalysisHubRef = useRef<{ refreshData: () => void } | null>(null);
+  
+  // Register a child component's refresh function
+  const registerRefreshFunction = (tab: string, refreshFunction: () => void) => {
+    if (tab === "overview") {
+      marketAnalysisHubRef.current = { refreshData: refreshFunction };
+    }
+  };
+  
   // Simulate data refresh
   const handleRefresh = async () => {
     setIsLoading(true);
+    
+    // Call child component refresh functions if they exist
+    if (marketAnalysisHubRef.current) {
+      marketAnalysisHubRef.current.refreshData();
+    }
+    
     // Simulate API call with delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     setLastUpdated(new Date());
@@ -103,7 +119,10 @@ export default function MarketAnalysisPage() {
         </TabsList>
         
         <TabsContent value="overview" className="mt-0">
-          <MarketAnalysisHub lastUpdated={lastUpdated} />
+          <MarketAnalysisHub 
+            lastUpdated={lastUpdated} 
+            onRegisterRefresh={(refreshFn) => registerRefreshFunction("overview", refreshFn)}
+          />
         </TabsContent>
         
         <TabsContent value="exchanges" className="mt-0">
