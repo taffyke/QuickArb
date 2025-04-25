@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { 
   ArbitrageOpportunity, 
   Exchange, 
-  useCrypto 
+  useCrypto,
+  NetworkInfo
 } from "@/contexts/crypto-context";
 import { ArbitrageOpportunityCard } from "@/components/arbitrage/arbitrage-opportunity-card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import { 
   ArrowDownUp, 
@@ -34,7 +36,11 @@ import {
   SlidersHorizontal, 
   SortAsc, 
   SortDesc,
-  DollarSign
+  DollarSign,
+  Clock,
+  ChevronRight,
+  Coins,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +74,128 @@ interface StablecoinArbitrageOpportunity extends Omit<ArbitrageOpportunity, 'net
     networkFees: number;
     otherFees: number;
   };
+  fromExchangePrice: number;
+  toExchangePrice: number;
+}
+
+// Stablecoin Opportunity Card Component with Price Display
+const StablecoinOpportunityCard = ({ 
+  opportunity, 
+  profitEstimate, 
+  onExecute 
+}: { 
+  opportunity: StablecoinArbitrageOpportunity;
+  profitEstimate: any;
+  onExecute: (opportunity: StablecoinArbitrageOpportunity) => void;
+}) => {
+  // Format timestamp
+  const formatTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return 'Today';
+  };
+
+  // Get risk label
+  const getRiskLabel = (score: number) => {
+    if (score <= 2) return "Low";
+    if (score <= 5) return "Medium";
+    return "High";
+  };
+
+  // Get risk color
+  const getRiskColor = (score: number) => {
+    if (score <= 2) return "text-green-500";
+    if (score <= 5) return "text-yellow-500";
+    return "text-red-500";
+  };
+
+  return (
+    <Card className={cn(
+      "opportunity-card transition-all",
+      opportunity.spreadPercent >= 1.0 ? "bg-success/5 dark:bg-success/10" : ""
+    )}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <Coins className="mr-1.5 h-4 w-4 text-blue-500" />
+            {opportunity.fromExchange} → {opportunity.toExchange}
+          </CardTitle>
+          <Badge variant={opportunity.spreadPercent >= 1.0 ? "default" : "outline"}>
+            {opportunity.spreadPercent.toFixed(2)}%
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pb-2">
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center">
+            <span className="font-medium">{opportunity.pair}</span>
+          </div>
+          <div className="flex items-center text-muted-foreground text-xs">
+            <Clock className="mr-1 h-3.5 w-3.5" />
+            <span>{formatTimeAgo(opportunity.timestamp)}</span>
+          </div>
+        </div>
+
+        {/* Price Display */}
+        <div className="bg-muted/50 rounded-md p-2 mt-2">
+          <h4 className="text-xs font-medium mb-1.5">Current Prices</h4>
+          <div className="grid grid-cols-1 gap-1.5 text-xs">
+            <div className="flex justify-between">
+              <span>{opportunity.fromExchange} Price:</span>
+              <span className="font-mono">${opportunity.fromExchangePrice?.toFixed(4)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>{opportunity.toExchange} Price:</span>
+              <span className="font-mono">${opportunity.toExchangePrice?.toFixed(4)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Spread:</span>
+              <span className="font-mono text-green-500">
+                ${opportunity.spreadAmount.toFixed(4)} ({opportunity.spreadPercent.toFixed(2)}%)
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Type:</div>
+          <div className="font-medium">{opportunity.stablecoinType}</div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Peg Deviation:</div>
+          <div className="font-medium">{(opportunity.pegDeviation * 100).toFixed(3)}%</div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Risk Level:</div>
+          <div className={cn("font-medium", getRiskColor(opportunity.riskScore))}>
+            {getRiskLabel(opportunity.riskScore)}
+            {opportunity.riskScore > 5 && <AlertTriangle className="inline-block ml-1 h-3.5 w-3.5" />}
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="pt-0 flex justify-between items-center">
+        <div className="flex items-center text-sm">
+          <DollarSign className="h-4 w-4 mr-1 text-green-500" />
+          <span className="font-medium">Est. profit: ${profitEstimate.netProfit.toFixed(2)}</span>
+        </div>
+        <Button 
+          onClick={() => onExecute(opportunity)} 
+          className="ml-auto gap-1" 
+          size="sm"
+          variant="outline"
+        >
+          Execute <ChevronRight className="h-4 w-4" />
+        </Button>
+      </CardFooter>
+    </Card>
+  );
 }
 
 export default function StablecoinArbitrage() {
@@ -129,7 +257,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.995,
+      toExchangePrice: 1.007
     },
     {
       id: "stbl-2",
@@ -151,7 +281,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.998,
+      toExchangePrice: 1.006
     },
     {
       id: "stbl-3",
@@ -173,7 +305,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.992,
+      toExchangePrice: 1.007
     },
     {
       id: "stbl-4",
@@ -195,7 +329,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.996,
+      toExchangePrice: 1.005
     },
     {
       id: "stbl-5",
@@ -217,7 +353,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.994,
+      toExchangePrice: 1.006
     },
     {
       id: "stbl-6",
@@ -239,7 +377,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.997,
+      toExchangePrice: 1.003
     },
     {
       id: "stbl-7",
@@ -261,7 +401,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.992,
+      toExchangePrice: 1.008
     },
     {
       id: "stbl-8",
@@ -283,7 +425,9 @@ export default function StablecoinArbitrage() {
         exchangeFees: 0,
         networkFees: 0,
         otherFees: 0
-      }
+      },
+      fromExchangePrice: 0.998,
+      toExchangePrice: 1.002
     }
   ];
 
@@ -566,69 +710,12 @@ export default function StablecoinArbitrage() {
               viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
             )}>
               {filteredOpportunities.map((opportunity) => (
-                <Card key={opportunity.id} className={cn(
-                  "transition-all hover:shadow-md",
-                  viewMode === "list" ? "flex flex-row" : ""
-                )}>
-                  <CardHeader className={cn(
-                    viewMode === "list" ? "w-1/3 py-3" : ""
-                  )}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-xl">{opportunity.pair}</CardTitle>
-                        <CardDescription>
-                          {opportunity.fromExchange} → {opportunity.toExchange}
-                        </CardDescription>
-                      </div>
-                      <Badge 
-                        variant={opportunity.riskScore <= 2 ? "default" : 
-                                opportunity.riskScore <= 5 ? "secondary" : "destructive"}
-                        className="ml-2"
-                      >
-                        Risk: {opportunity.riskScore}/10
-                      </Badge>
-                    </div>
-                    <Badge variant="outline" className="mt-1 w-fit">
-                      {opportunity.stablecoinType}
-                    </Badge>
-                  </CardHeader>
-                  
-                  <CardContent className={cn(
-                    viewMode === "list" ? "flex-1 py-3" : ""
-                  )}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Spread</p>
-                        <p className="text-2xl font-bold text-crypto-green">
-                          {opportunity.spreadPercent.toFixed(2)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Peg Deviation</p>
-                        <p className="text-2xl font-bold">
-                          {(opportunity.pegDeviation * 100).toFixed(3)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Est. Profit</p>
-                        <p className="text-lg font-semibold">${opportunity.netProfit.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">24h Volume</p>
-                        <p className="text-lg font-semibold">
-                          ${(opportunity.volume24h / 1000000).toFixed(1)}M
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 flex justify-end">
-                      <Button size="sm" onClick={() => executeViaArbitrageBot(opportunity)}>
-                        <DollarSign className="mr-2 h-4 w-4" />
-                        Execute
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <StablecoinOpportunityCard
+                  key={opportunity.id}
+                  opportunity={opportunity}
+                  profitEstimate={calculateProfitEstimate(opportunity)}
+                  onExecute={executeViaArbitrageBot}
+                />
               ))}
             </div>
           )}

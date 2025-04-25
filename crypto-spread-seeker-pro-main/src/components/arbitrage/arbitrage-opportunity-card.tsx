@@ -56,7 +56,9 @@ export function ArbitrageOpportunityCard({
     netProfit,
     networks,
     bestNetwork,
-    feeDetails
+    feeDetails,
+    fromExchangePrice,
+    toExchangePrice
   } = opportunity;
 
   // Format timestamp
@@ -191,6 +193,17 @@ export function ArbitrageOpportunityCard({
 
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="space-y-1">
+            <div className="text-muted-foreground text-xs">{fromExchange} Price</div>
+            <div className="font-medium crypto-mono">${fromExchangePrice?.toFixed(2) || '—'}</div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-muted-foreground text-xs">{toExchange} Price</div>
+            <div className="font-medium crypto-mono">${toExchangePrice?.toFixed(2) || '—'}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="space-y-1">
             <div className="text-muted-foreground text-xs">Spread</div>
             <div className="font-medium crypto-mono">${spreadAmount.toFixed(2)}</div>
           </div>
@@ -275,18 +288,23 @@ export function ArbitrageOpportunityCard({
           )}
         </div>
       </CardContent>
-      <CardFooter className="pt-2">
-        {expanded ? (
-          <Button size="sm" className="w-full" onClick={handleExecute}>
-            <DollarSign className="mr-2 h-4 w-4" />
-            Execute
-          </Button>
-        ) : (
-          <div className="flex justify-center w-full text-xs text-muted-foreground">
-            <ChevronDown className="h-4 w-4 mr-1" />
-            <span>Click for details</span>
-          </div>
-        )}
+      <CardFooter className="p-2 pt-0">
+        <div className="flex justify-between w-full text-xs text-muted-foreground">
+          <span className="flex items-center">
+            <Shield className="h-3 w-3 mr-1" />
+            Verified 
+          </span>
+          {!expanded && (
+            <Button variant="ghost" size="icon" className="w-5 h-5 p-0">
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+          )}
+          {expanded && (
+            <Button variant="ghost" size="icon" className="w-5 h-5 p-0">
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );

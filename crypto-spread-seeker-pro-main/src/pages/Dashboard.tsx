@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { useCrypto } from "@/contexts/crypto-context";
 import { ArbitrageOpportunityCard } from "@/components/arbitrage/arbitrage-opportunity-card";
 import { MarketOverviewCard } from "@/components/dashboard/market-overview-card";
-import { ExchangeVolumeChart } from "@/components/dashboard/exchange-volume-chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,11 +49,16 @@ import {
   TrendingDown, 
   TrendingUp, 
   Volume2, 
-  Wallet
+  Wallet,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { NewsTicker } from "@/components/NewsTicker";
+import { TradingViewEnhancedTicker } from "@/components/TradingViewEnhancedTicker";
+import { MarketNewsDisplay } from "@/components/MarketNewsDisplay";
+import { DirectTradingViewNews } from "@/components/DirectTradingViewNews";
+import { MarqueeNewsTicker } from "@/components/MarqueeNewsTicker";
+import TradingViewCryptoHeatmap from "@/components/TradingViewCryptoHeatmap";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -63,7 +67,8 @@ export default function Dashboard() {
     priceData, 
     arbitrageOpportunities, 
     exchangeVolumes, 
-    refreshData 
+    refreshData,
+    subscribeToSymbol 
   } = useCrypto();
   
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
@@ -77,12 +82,30 @@ export default function Dashboard() {
   const successTimeout = useRef<number | null>(null);
   const [minSpread, setMinSpread] = useState(0.5);
   
+  // Subscribe to additional pairs on component mount
+  useEffect(() => {
+    const additionalPairs = [
+      'SOL-USDT',
+      'DOGE-USDT',
+      'XRP-USDT'
+    ];
+    
+    additionalPairs.forEach(pair => {
+      subscribeToSymbol(pair);
+    });
+  }, [subscribeToSymbol]);
+  
   // Calculate market overview metrics
   const btcData = priceData.find(item => item.pair === 'BTC/USDT' && item.exchange === 'Binance');
   const ethData = priceData.find(item => item.pair === 'ETH/USDT' && item.exchange === 'Coinbase');
   
   const totalVolume = exchangeVolumes.reduce((acc, item) => acc + item.volume24h, 0);
-  const avgChangePercent = priceData.reduce((acc, item) => acc + item.priceChangePercent24h, 0) / priceData.length;
+  
+  // Calculate average price change - handle case when priceData is empty
+  const avgChangePercent = priceData.length > 0 
+    ? priceData.reduce((acc, item) => acc + item.priceChangePercent24h, 0) / priceData.length
+    : 0;
+    
   const totalOpportunities = arbitrageOpportunities.filter(opp => opp.spreadPercent >= 0.5).length;
   
   // Filter opportunities based on search query, active tab, and custom filters
@@ -90,8 +113,8 @@ export default function Dashboard() {
     .filter(opportunity => {
       // Search query filter
       const matchesSearch = searchQuery
-        ? opportunity.buyExchange.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          opportunity.sellExchange.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ? opportunity.fromExchange.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          opportunity.toExchange.toLowerCase().includes(searchQuery.toLowerCase()) ||
           opportunity.pair.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
       
@@ -100,15 +123,15 @@ export default function Dashboard() {
         activeTab === "all" ? true :
         activeTab === "highSpread" ? opportunity.spreadPercent >= 2 :
         activeTab === "highVolume" ? opportunity.volume24h > 1000000 :
-        activeTab === "lowRisk" ? opportunity.liquidityScore >= 8 : true;
+        activeTab === "lowRisk" ? opportunity.netProfit > 0 : true;
       
       // Minimum spread filter
       const matchesSpread = opportunity.spreadPercent >= minSpreadFilter;
       
       // Exchange filter
       const matchesExchange = exchangeFilter.length === 0 ? true : 
-        exchangeFilter.includes(opportunity.buyExchange) || 
-        exchangeFilter.includes(opportunity.sellExchange);
+        exchangeFilter.includes(opportunity.fromExchange) || 
+        exchangeFilter.includes(opportunity.toExchange);
         
       return matchesSearch && matchesTab && matchesSpread && matchesExchange;
     });
@@ -129,26 +152,19 @@ export default function Dashboard() {
 
   // Trigger a refresh
   const handleRefresh = () => {
-    // Since isLoading is a state from context, we'll check if it has a setter
-    if (typeof isLoading === 'boolean') {
-      refreshData();
-      
-      // Display success message after refresh
-      setTimeout(() => {
-        setLastRefreshed(new Date());
-        setSuccessMessage("Data refreshed successfully");
-        
-        // Clear any existing timeout
-        if (successTimeout.current) {
-          window.clearTimeout(successTimeout.current);
-        }
-        
-        // Clear success message after 3 seconds
-        successTimeout.current = window.setTimeout(() => {
-          setSuccessMessage(null);
-        }, 3000);
-      }, 800);
+    refreshData();
+    setLastRefreshed(new Date());
+    setSuccessMessage("Data refreshed successfully");
+    
+    // Clear any existing timeout
+    if (successTimeout.current) {
+      window.clearTimeout(successTimeout.current);
     }
+    
+    // Clear success message after 3 seconds
+    successTimeout.current = window.setTimeout(() => {
+      setSuccessMessage(null);
+    }, 3000);
   };
   
   const navigateToSettings = () => {
@@ -180,6 +196,19 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Loading indicator for the full dashboard
+  if (isLoading && priceData.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh]">
+        <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+        <h2 className="text-xl font-semibold">Connecting to exchanges...</h2>
+        <p className="text-muted-foreground">
+          Loading real-time data from multiple cryptocurrency exchanges.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 mb-10 relative">
       {successMessage && (
@@ -200,33 +229,52 @@ export default function Dashboard() {
               Your personal crypto arbitrage assistant - Real-time profit finder
             </p>
           </div>
-          <div className="flex flex-col xs:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button 
-              onClick={handleRefresh} 
-              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
               disabled={isLoading}
+              className="gap-1"
             >
-              <RefreshCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              Refresh Data
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4" />
+              )}
+              Refresh
             </Button>
             <Button 
               variant="outline" 
-              className="gap-2 border-blue-500/20"
+              size="sm" 
               onClick={navigateToSettings}
+              className="gap-1"
             >
               <Settings className="h-4 w-4" />
-              Scanner Settings
+              Settings
             </Button>
           </div>
         </div>
+
+        {/* News Display */}
+        <MarketNewsDisplay />
         
-        <div className="flex items-center h-10 mt-1">
-          <div className="flex items-center gap-2 border-r border-blue-500/20 pr-4">
-            <RadioTower className="h-4 w-4 text-blue-500 animate-pulse" />
-            <span className="text-sm font-medium">Live</span>
+        {priceData.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Last updated: {lastRefreshed.toLocaleTimeString()}
+            </div>
+            <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
+              <GitCompareArrows className="h-3 w-3" />
+              {totalOpportunities} arbitrage opportunities
+            </div>
+            <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
+              <RadioTower className="h-3 w-3" />
+              {priceData.length} price feeds
+            </div>
           </div>
-          <NewsTicker className="flex-1" />
-        </div>
+        )}
       </div>
       
       <div className="flex flex-col sm:flex-row justify-between items-center bg-card rounded-lg border p-3 gap-2">
@@ -267,8 +315,8 @@ export default function Dashboard() {
             
             if (successTimeout.current) window.clearTimeout(successTimeout.current);
             successTimeout.current = window.setTimeout(() => setSuccessMessage(null), 3000);
-          }} className="w-full sm:w-[180px]">
-            <SelectTrigger>
+          }}>
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Select mode" />
             </SelectTrigger>
             <SelectContent>
@@ -460,75 +508,23 @@ export default function Dashboard() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-6">
+      <div className="grid grid-cols-1 gap-6 mt-6">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
-              <CardTitle>Exchange Volume</CardTitle>
+              <CardTitle>Crypto Market Heatmap</CardTitle>
             </div>
             <CardDescription>
-              Trading volume breakdown across major exchanges (24h)
+              Live visualization of cryptocurrency performance
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0 pb-4">
-            <ExchangeVolumeChart data={exchangeVolumes} />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <LineChart className="h-5 w-5 text-primary" />
-              <CardTitle>Market Insights</CardTitle>
-            </div>
-            <CardDescription>
-              Key market indicators and trends for arbitrage trading
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="bg-card/50 border rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Market Sentiment</span>
-                  <TrendingUp className="h-4 w-4 text-crypto-green" />
-                </div>
-                <div className="text-2xl font-bold mb-1">Bullish</div>
-                <div className="text-xs text-muted-foreground">
-                  Based on 12/15 bullish indicators
-                </div>
-              </div>
-              <div className="bg-card/50 border rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Volatility</span>
-                  <TrendingDown className="h-4 w-4 text-crypto-yellow" />
-                </div>
-                <div className="text-2xl font-bold mb-1">Medium</div>
-                <div className="text-xs text-muted-foreground">
-                  15% lower than last week
-                </div>
-              </div>
-              <div className="bg-card/50 border rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Arbitrage Sentiment</span>
-                  <ArrowLeftRight className="h-4 w-4 text-crypto-blue" />
-                </div>
-                <div className="text-2xl font-bold mb-1">Favorable</div>
-                <div className="text-xs text-muted-foreground">
-                  High spread opportunities on altcoins
-                </div>
-              </div>
-              <div className="bg-card/50 border rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Funding Rates</span>
-                  <BarChart3 className="h-4 w-4 text-crypto-purple" />
-                </div>
-                <div className="text-2xl font-bold mb-1">Neutral</div>
-                <div className="text-xs text-muted-foreground">
-                  Avg. rate: +0.005% per 8h
-                </div>
-              </div>
-            </div>
+          <CardContent className="p-4">
+            <TradingViewCryptoHeatmap 
+              width="100%" 
+              height={500} 
+              colorTheme="light" 
+            />
           </CardContent>
         </Card>
       </div>
@@ -611,22 +607,22 @@ export default function Dashboard() {
               <ScrollArea className="h-[200px] border rounded-md p-4">
                 <div className="space-y-2">
                   {exchangeVolumes.map((exchange) => (
-                    <div key={exchange.name} className="flex items-center space-x-2">
+                    <div key={exchange.exchange} className="flex items-center space-x-2">
                       <Checkbox 
-                        id={exchange.name}
-                        checked={exchangeFilter.includes(exchange.name)}
+                        id={exchange.exchange}
+                        checked={exchangeFilter.includes(exchange.exchange)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setExchangeFilter([...exchangeFilter, exchange.name]);
+                            setExchangeFilter([...exchangeFilter, exchange.exchange]);
                           } else {
                             setExchangeFilter(
-                              exchangeFilter.filter((name) => name !== exchange.name)
+                              exchangeFilter.filter((name) => name !== exchange.exchange)
                             );
                           }
                         }}
                       />
-                      <Label htmlFor={exchange.name} className="text-sm font-normal">
-                        {exchange.name}
+                      <Label htmlFor={exchange.exchange} className="text-sm font-normal">
+                        {exchange.exchange}
                       </Label>
                     </div>
                   ))}
@@ -664,6 +660,13 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Show partial loading indicator when refreshing but already have data */}
+      {isLoading && priceData.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 bg-background/80 backdrop-blur-sm px-4 py-2 rounded-md flex items-center gap-2 shadow-md border">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Refreshing data...
+        </div>
+      )}
     </div>
   );
 }

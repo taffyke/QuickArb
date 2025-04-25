@@ -1,3 +1,17 @@
+import {
+  ArrowLeftRight,
+  TriangleIcon,
+  TimerReset,
+  CandlestickChart,
+  Users,
+  Home,
+  GitCompareArrows,
+  Bot,
+  LineChart,
+  Newspaper,
+  BarChart3
+} from "lucide-react";
+
 export const arbitrageItems = [
   {
     title: "Direct Arbitrage",
@@ -47,6 +61,11 @@ export const mainNavItems = [
     title: "Market Analysis",
     href: "/market-analysis",
     icon: LineChart,
+  },
+  {
+    title: "News",
+    href: "/news",
+    icon: Newspaper,
   },
   {
     title: "Market Insights",

@@ -62,7 +62,7 @@ export function Layout() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
-                © {new Date().getFullYear()} Crypto Spread Seeker Pro
+                © {new Date().getFullYear()} QuickArb
               </span>
             </div>
             

@@ -22,14 +22,43 @@ import {
   CreditCard,
   CheckCircle2,
   DollarSign,
-  X
+  X,
+  Laptop,
+  AlertCircle
 } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { exchanges } from "@/constants/exchanges";
+import { useTheme } from "next-themes";
+import { useToast } from "@/hooks/use-toast";
+
+// Define accent color options
+const accentColors = [
+  { name: "blue", color: "bg-blue-500", borderColor: "border-blue-600", value: "blue" },
+  { name: "green", color: "bg-green-500", borderColor: "border-green-600", value: "green" },
+  { name: "purple", color: "bg-purple-500", borderColor: "border-purple-600", value: "purple" },
+  { name: "orange", color: "bg-orange-500", borderColor: "border-orange-600", value: "orange" },
+  { name: "pink", color: "bg-pink-500", borderColor: "border-pink-600", value: "pink" },
+  { name: "cyan", color: "bg-cyan-500", borderColor: "border-cyan-600", value: "cyan" },
+];
+
+// App-wide settings context event
+const dispatchSettingsChange = (setting, value) => {
+  const settingsChangeEvent = new CustomEvent('app-settings-change', {
+    detail: { [setting]: value }
+  });
+  window.dispatchEvent(settingsChangeEvent);
+  
+  // Also save to localStorage for persistence
+  localStorage.setItem(setting, typeof value === 'object' ? JSON.stringify(value) : value);
+};
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("general");
   const location = useLocation();
+  const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   
   // Check for activeTab in location state
   useEffect(() => {
@@ -59,19 +88,22 @@ export default function Settings() {
   
   // Settings state
   const [settings, setSettings] = useState({
-    theme: "dark",
-    language: "en",
-    currency: "USD",
-    refreshInterval: "30",
-    dataDisplay: "grid",
-    notifications: {
+    theme: localStorage.getItem("theme") || "dark",
+    accentColor: localStorage.getItem("accentColor") || "blue",
+    language: localStorage.getItem("language") || "en",
+    currency: localStorage.getItem("currency") || "USD",
+    refreshInterval: localStorage.getItem("refreshInterval") || "30",
+    timezone: localStorage.getItem("timezone") || "UTC+0:00",
+    notifications: JSON.parse(localStorage.getItem("notifications") || JSON.stringify({
       priceAlerts: true,
       arbitrageOpportunities: true,
       securityAlerts: true,
       newsAlerts: false,
       emailNotifications: true,
       desktopNotifications: true,
-    },
+      minProfitThreshold: "2.0",
+      alertFrequency: "realtime"
+    })),
     exchanges: initialExchangesState,
     trading: {
       confirmTrades: true,
@@ -89,13 +121,26 @@ export default function Settings() {
 
   // Handle setting changes
   const updateSettings = (category, key, value) => {
-    setSettings(prev => ({
-      ...prev,
+    const updatedSettings = {
+      ...settings,
       [category]: {
-        ...prev[category],
+        ...settings[category],
         [key]: value
       }
-    }));
+    };
+    
+    setSettings(updatedSettings);
+    
+    // Dispatch event for app-wide notification changes
+    if (category === "notifications") {
+      dispatchSettingsChange("notifications", updatedSettings.notifications);
+      
+      toast({
+        title: "Notification settings updated",
+        description: "Your preferences have been saved and applied across the app.",
+        duration: 2000,
+      });
+    }
   };
 
   const updateSingleSetting = (key, value) => {
@@ -103,6 +148,109 @@ export default function Settings() {
       ...prev,
       [key]: value
     }));
+    
+    // Handle theme changes
+    if (key === "theme") {
+      setTheme(value);
+      localStorage.setItem("theme", value);
+      
+      dispatchSettingsChange("theme", value);
+      
+      toast({
+        title: `Theme Changed: ${value.charAt(0).toUpperCase() + value.slice(1)}`,
+        description: `Your preference has been saved.`,
+        duration: 2000,
+      });
+    }
+    
+    // Handle accent color changes
+    if (key === "accentColor") {
+      dispatchSettingsChange("accentColor", value);
+      
+      toast({
+        title: `Accent Color Changed`,
+        description: `Your preference has been saved.`,
+        duration: 2000,
+      });
+    }
+    
+    // Handle language changes
+    if (key === "language") {
+      dispatchSettingsChange("language", value);
+      
+      toast({
+        title: `Language Changed: ${value.toUpperCase()}`,
+        description: `App language will be updated on next refresh.`,
+        duration: 2000,
+      });
+    }
+    
+    // Handle currency changes
+    if (key === "currency") {
+      dispatchSettingsChange("currency", value);
+      
+      toast({
+        title: `Default Currency Changed: ${value}`,
+        description: `All prices will now be displayed in ${value}.`,
+        duration: 2000,
+      });
+    }
+    
+    // Handle refresh interval changes
+    if (key === "refreshInterval") {
+      dispatchSettingsChange("refreshInterval", value);
+      
+      toast({
+        title: `Data Refresh Interval Updated`,
+        description: `Data will now refresh every ${value} seconds.`,
+        duration: 2000,
+      });
+    }
+    
+    // Handle timezone changes
+    if (key === "timezone") {
+      dispatchSettingsChange("timezone", value);
+      
+      toast({
+        title: `Timezone Updated`,
+        description: `All times will now be displayed in ${value}.`,
+        duration: 2000,
+      });
+    }
+  };
+
+  // Handle payment processing
+  const handlePaymentProcess = (plan) => {
+    setIsProcessingPayment(true);
+    
+    // Simulate payment processing
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      
+      toast({
+        title: "Subscription Upgraded!",
+        description: `Your account has been upgraded to the ${plan} plan.`,
+        duration: 3000,
+      });
+      
+      // In a real implementation, you would redirect to a payment gateway
+      // and then handle the callback
+    }, 2000);
+  };
+
+  const saveAllSettings = () => {
+    // Save all settings at once
+    Object.entries(settings).forEach(([key, value]) => {
+      if (typeof value !== 'function') {
+        dispatchSettingsChange(key, value);
+      }
+    });
+    
+    toast({
+      title: "All Settings Saved",
+      description: "Your preferences have been applied across the app.",
+      duration: 2000,
+    });
   };
 
   return (
@@ -116,7 +264,7 @@ export default function Settings() {
         </div>
         
         <div className="flex gap-2">
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={saveAllSettings}>
             <Save className="h-4 w-4" />
             <span>Save All Settings</span>
           </Button>
@@ -249,34 +397,11 @@ export default function Settings() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="dataDisplay">Data Display Format</Label>
+                    <Label htmlFor="timezone">Timezone</Label>
                     <Select 
-                      value={settings.dataDisplay} 
-                      onValueChange={(value) => updateSingleSetting("dataDisplay", value)}
+                      value={settings.timezone}
+                      onValueChange={(value) => updateSingleSetting("timezone", value)}
                     >
-                      <SelectTrigger id="dataDisplay">
-                        <SelectValue placeholder="Select display format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="grid">Grid View</SelectItem>
-                        <SelectItem value="list">List View</SelectItem>
-                        <SelectItem value="compact">Compact View</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">Auto Refresh Data</h3>
-                    <p className="text-sm text-muted-foreground">Automatically refresh market data</p>
-                  </div>
-                  <Switch checked={true} />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="UTC+3:00">
                     <SelectTrigger id="timezone">
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
@@ -290,6 +415,20 @@ export default function Settings() {
                       <SelectItem value="UTC-8:00">UTC-8:00 (Los Angeles)</SelectItem>
                     </SelectContent>
                   </Select>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">Auto Refresh Data</h3>
+                    <p className="text-sm text-muted-foreground">Automatically refresh market data</p>
+                  </div>
+                  <Switch 
+                    checked={settings.refreshInterval !== "0"} 
+                    onCheckedChange={(checked) => 
+                      updateSingleSetting("refreshInterval", checked ? "30" : "0")
+                    } 
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -306,7 +445,7 @@ export default function Settings() {
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Theme</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div 
                       className={`flex flex-col items-center justify-center rounded-lg border p-4 cursor-pointer ${settings.theme === 'light' ? 'border-primary bg-primary/10' : 'border-border/50'}`}
                       onClick={() => updateSingleSetting("theme", "light")}
@@ -326,6 +465,16 @@ export default function Settings() {
                       </div>
                       <span className="font-medium">Dark</span>
                     </div>
+                    
+                    <div 
+                      className={`flex flex-col items-center justify-center rounded-lg border p-4 cursor-pointer ${settings.theme === 'system' ? 'border-primary bg-primary/10' : 'border-border/50'}`}
+                      onClick={() => updateSingleSetting("theme", "system")}
+                    >
+                      <div className="rounded-full bg-gradient-to-br from-white to-gray-900 border border-gray-400 p-3 mb-2">
+                        <Laptop className="h-5 w-5 text-gray-500" />
+                      </div>
+                      <span className="font-medium">System</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -334,40 +483,14 @@ export default function Settings() {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Accent Color</h3>
                   <div className="flex flex-wrap gap-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-500 cursor-pointer border-2 border-blue-600"></div>
-                    <div className="h-8 w-8 rounded-full bg-green-500 cursor-pointer"></div>
-                    <div className="h-8 w-8 rounded-full bg-purple-500 cursor-pointer"></div>
-                    <div className="h-8 w-8 rounded-full bg-orange-500 cursor-pointer"></div>
-                    <div className="h-8 w-8 rounded-full bg-pink-500 cursor-pointer"></div>
-                    <div className="h-8 w-8 rounded-full bg-cyan-500 cursor-pointer"></div>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Compact Mode</h3>
-                      <p className="text-sm text-muted-foreground">Use a more condensed layout</p>
-                    </div>
-                    <Switch checked={false} />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Animations</h3>
-                      <p className="text-sm text-muted-foreground">Enable UI animations</p>
-                    </div>
-                    <Switch checked={true} />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">High Contrast</h3>
-                      <p className="text-sm text-muted-foreground">Increase contrast for better accessibility</p>
-                    </div>
-                    <Switch checked={false} />
+                    {accentColors.map((color) => (
+                      <div 
+                        key={color.value}
+                        className={`h-8 w-8 rounded-full ${color.color} cursor-pointer transition-all hover:scale-110 ${settings.accentColor === color.value ? `border-2 ${color.borderColor}` : ''}`}
+                        onClick={() => updateSingleSetting("accentColor", color.value)}
+                        title={color.name.charAt(0).toUpperCase() + color.name.slice(1)}
+                      ></div>
+                    ))}
                   </div>
                 </div>
               </CardContent>
@@ -438,7 +561,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-medium">Email Notifications</h3>
-                        <p className="text-sm text-muted-foreground">Send notifications to your email</p>
+                        <p className="text-sm text-muted-foreground">Receive alerts via email</p>
                       </div>
                       <Switch 
                         checked={settings.notifications.emailNotifications} 
@@ -449,7 +572,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-medium">Desktop Notifications</h3>
-                        <p className="text-sm text-muted-foreground">Show notifications in your browser</p>
+                        <p className="text-sm text-muted-foreground">Receive alerts in the browser</p>
                       </div>
                       <Switch 
                         checked={settings.notifications.desktopNotifications} 
@@ -460,19 +583,38 @@ export default function Settings() {
                   
                   <Separator />
                   
+                  <h3 className="text-lg font-medium">Alert Configuration</h3>
+                  <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="notification-frequency">Notification Frequency</Label>
-                    <Select defaultValue="real-time">
-                      <SelectTrigger id="notification-frequency">
+                      <Label htmlFor="minProfitThreshold">Minimum Profit Threshold (%)</Label>
+                      <Input 
+                        id="minProfitThreshold" 
+                        type="number" 
+                        value={settings.notifications.minProfitThreshold}
+                        onChange={(e) => updateSettings("notifications", "minProfitThreshold", e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Only notify for arbitrage opportunities above this profit percentage
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="alertFrequency">Alert Frequency</Label>
+                      <Select 
+                        value={settings.notifications.alertFrequency}
+                        onValueChange={(value) => updateSettings("notifications", "alertFrequency", value)}
+                      >
+                        <SelectTrigger id="alertFrequency">
                         <SelectValue placeholder="Select frequency" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="real-time">Real-time</SelectItem>
-                        <SelectItem value="hourly">Hourly Digest</SelectItem>
-                        <SelectItem value="daily">Daily Digest</SelectItem>
-                        <SelectItem value="weekly">Weekly Summary</SelectItem>
+                          <SelectItem value="realtime">Real-time</SelectItem>
+                          <SelectItem value="batched">Batched (every 15 min)</SelectItem>
+                          <SelectItem value="hourly">Hourly digest</SelectItem>
+                          <SelectItem value="daily">Daily digest</SelectItem>
                       </SelectContent>
                     </Select>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -743,7 +885,20 @@ export default function Settings() {
                         <span className="text-sm">Priority support</span>
                       </div>
                     </div>
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Upgrade Now</Button>
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700" 
+                      onClick={() => handlePaymentProcess('Pro')}
+                      disabled={isProcessingPayment}
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Upgrade Now'
+                      )}
+                    </Button>
                   </div>
                   
                   {/* Enterprise Plan */}
@@ -772,7 +927,21 @@ export default function Settings() {
                         <span className="text-sm">Dedicated account manager</span>
                       </div>
                     </div>
-                    <Button variant="outline" className="w-full">Contact Sales</Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => handlePaymentProcess('Enterprise')}
+                      disabled={isProcessingPayment}
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Contact Sales'
+                      )}
+                    </Button>
                   </div>
                 </div>
                 
@@ -844,8 +1013,32 @@ export default function Settings() {
                     </div>
                   </div>
                   
-                  <div className="mt-4">
+                  <div className="mt-4 flex justify-between">
                     <Button className="w-full sm:w-auto">Update Billing Information</Button>
+                    <Button 
+                      className="w-full sm:w-auto bg-green-600 hover:bg-green-700" 
+                      onClick={() => {
+                        setIsProcessingPayment(true);
+                        setTimeout(() => {
+                          setIsProcessingPayment(false);
+                          toast({
+                            title: "Payment Successful!",
+                            description: "Your payment method has been saved.",
+                            duration: 3000,
+                          });
+                        }, 1500);
+                      }}
+                      disabled={isProcessingPayment}
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Complete Payment'
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardContent>

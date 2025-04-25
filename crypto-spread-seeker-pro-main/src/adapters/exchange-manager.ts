@@ -1,6 +1,26 @@
 import { Exchange } from '../contexts/crypto-context';
 import { ExchangeAdapter, ExchangePriceData } from './types';
-import { BinanceAdapter } from './binance-adapter';
+// Import real CCXT adapter for live data
+import { RealCCXTAdapter } from './real-ccxt-adapter';
+// Keeping MockAdapter as fallback
+import { MockAdapter } from './mock-adapter';
+// import { BrowserCCXTAdapter } from './browser-ccxt-adapter';
+// import { BinanceAdapter } from './binance-adapter';
+// import { BitgetAdapter } from './bitget-adapter';
+// import { BybitAdapter } from './bybit-adapter';
+// import { KuCoinAdapter } from './kucoin-adapter';
+// import { GateIoAdapter } from './gateio-adapter';
+// import { BitmartAdapter } from './bitmart-adapter';
+// import { BitfinexAdapter } from './bitfinex-adapter';
+// import { GeminiAdapter } from './gemini-adapter';
+// import { CoinbaseAdapter } from './coinbase-adapter';
+// import { KrakenAdapter } from './kraken-adapter';
+// import { PoloniexAdapter } from './poloniex-adapter';
+// import { OkxAdapter } from './okx-adapter';
+// import { AscendExAdapter } from './ascendex-adapter';
+// import { BittrueAdapter } from './bittrue-adapter';
+// import { HtxAdapter } from './htx-adapter';
+// import { MexcAdapter } from './mexc-adapter';
 
 /**
  * Unified price update event with exchange information
@@ -21,6 +41,7 @@ export interface ExchangeManagerOptions {
   maxUpdatesPerSecond?: number;
   autoReconnect?: boolean;
   logErrors?: boolean;
+  useMockData?: boolean; // Flag to use mock data instead of real data
 }
 
 /**
@@ -29,7 +50,8 @@ export interface ExchangeManagerOptions {
 const DEFAULT_OPTIONS: ExchangeManagerOptions = {
   maxUpdatesPerSecond: 10,
   autoReconnect: true,
-  logErrors: true
+  logErrors: true,
+  useMockData: false // By default, use real data
 };
 
 /**
@@ -60,26 +82,27 @@ export class ExchangeManager {
    * Initialize default adapters
    */
   private initDefaultAdapters(): void {
-    // Binance adapter is implemented, others will be added similarly
-    this.registerAdapter('Binance', new BinanceAdapter());
+    // Define the exchanges we want to use - focus on major ones for reliability
+    const exchanges: Exchange[] = [
+      'Binance', 
+      'Bybit', 
+      'KuCoin',
+      'Coinbase',
+      'Kraken'
+    ];
     
-    /*
-    // Example of adding other adapters when implemented:
-    this.registerAdapter('Bitget', new BitgetAdapter());
-    this.registerAdapter('Bybit', new BybitAdapter());
-    this.registerAdapter('KuCoin', new KuCoinAdapter());
-    this.registerAdapter('Gate.io', new GateIoAdapter());
-    this.registerAdapter('Bitfinex', new BitfinexAdapter());
-    this.registerAdapter('Gemini', new GeminiAdapter());
-    this.registerAdapter('Coinbase', new CoinbaseAdapter());
-    this.registerAdapter('Kraken', new KrakenAdapter());
-    this.registerAdapter('Poloniex', new PoloniexAdapter());
-    this.registerAdapter('OKX', new OkxAdapter());
-    this.registerAdapter('AscendEX', new AscendExAdapter());
-    this.registerAdapter('Bittrue', new BittrueAdapter());
-    this.registerAdapter('HTX', new HtxAdapter());
-    this.registerAdapter('MEXC', new MexcAdapter());
-    */
+    // Register adapters for each exchange based on configuration
+    for (const exchange of exchanges) {
+      if (this.options.useMockData) {
+        // Use mock adapter if mock data is requested
+        console.log(`[ExchangeManager] Using mock data for ${exchange}`);
+        this.registerAdapter(exchange, new MockAdapter(exchange));
+      } else {
+        // Use real CCXT adapter for live data
+        console.log(`[ExchangeManager] Using real data from CCXT for ${exchange}`);
+        this.registerAdapter(exchange, new RealCCXTAdapter(exchange));
+      }
+    }
   }
   
   /**
@@ -386,5 +409,89 @@ export class ExchangeManager {
         console.error('[ExchangeManager] Error in error listener:', listenerError);
       }
     });
+  }
+  
+  /**
+   * Refresh all price data from all exchanges
+   * This triggers a manual refresh of price data for all subscribed symbols
+   */
+  public async refreshAllPrices(): Promise<void> {
+    console.log('[ExchangeManager] Refreshing all prices');
+    
+    const refreshPromises = Array.from(this.adapters.entries()).map(async ([exchange, adapter]) => {
+      try {
+        // Get all symbols the adapter is subscribed to
+        const symbols = adapter.getSubscribedSymbols();
+        
+        // Fetch prices for each symbol
+        for (const symbol of symbols) {
+          try {
+            const priceData = await adapter.fetchPrice(symbol);
+            this.handlePriceUpdate(priceData);
+          } catch (error) {
+            console.error(`[ExchangeManager] Failed to refresh price for ${symbol} on ${exchange}:`, error);
+          }
+        }
+        
+        console.log(`[ExchangeManager] Refreshed prices on ${exchange}`);
+      } catch (error) {
+        console.error(`[ExchangeManager] Failed to refresh prices on ${exchange}:`, error);
+        this.emitError(error as Error, exchange, false);
+      }
+    });
+    
+    await Promise.allSettled(refreshPromises);
+  }
+  
+  /**
+   * Switch to mock data mode
+   */
+  public switchToMockData(): void {
+    // Only switch if not already in mock mode
+    if (!this.options.useMockData) {
+      this.options.useMockData = true;
+      this.reinitializeAdapters();
+    }
+  }
+  
+  /**
+   * Switch to real data mode
+   */
+  public switchToRealData(): void {
+    // Only switch if not already in real data mode
+    if (this.options.useMockData) {
+      this.options.useMockData = false;
+      this.reinitializeAdapters();
+    }
+  }
+  
+  /**
+   * Reinitialize adapters when switching data modes
+   */
+  private async reinitializeAdapters(): Promise<void> {
+    // Remember subscribed symbols
+    const subscribedSymbols = new Set<string>();
+    
+    // Get all currently subscribed symbols from all adapters
+    for (const adapter of this.adapters.values()) {
+      adapter.getSubscribedSymbols().forEach(symbol => subscribedSymbols.add(symbol));
+    }
+    
+    // Disconnect from all exchanges
+    await this.disconnectAll();
+    
+    // Clear adapters
+    this.adapters.clear();
+    
+    // Initialize new adapters
+    this.initDefaultAdapters();
+    
+    // Connect to all exchanges
+    await this.connectAll();
+    
+    // Resubscribe to all previously subscribed symbols
+    if (subscribedSymbols.size > 0) {
+      await this.subscribeToSymbols(Array.from(subscribedSymbols));
+    }
   }
 } 

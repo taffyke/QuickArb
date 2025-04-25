@@ -16,7 +16,8 @@ import {
   Network,
   Triangle,
   DollarSign,
-  ChevronDown
+  ChevronDown,
+  RefreshCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,6 +34,41 @@ type TriangularOpportunityCardProps = {
     roi: number;
   };
   onExecute?: (opportunity: TriangularOpportunity) => void;
+};
+
+// Add price display to the UI where prices are shown for each pair in the path
+const PriceDisplay = ({ 
+  opportunity
+}: { 
+  opportunity: TriangularOpportunity 
+}) => {
+  const { firstPair, secondPair, thirdPair, firstPairPrice, secondPairPrice, thirdPairPrice } = opportunity;
+  
+  return (
+    <div className="bg-muted/50 rounded-md p-2 mt-2">
+      <h4 className="text-xs font-medium mb-1.5">Current Prices</h4>
+      <div className="grid grid-cols-1 gap-1.5 text-xs">
+        {firstPairPrice && (
+          <div className="flex justify-between">
+            <span>{firstPair}:</span>
+            <span className="font-mono">${firstPairPrice.toFixed(2)}</span>
+          </div>
+        )}
+        {secondPairPrice && (
+          <div className="flex justify-between">
+            <span>{secondPair}:</span>
+            <span className="font-mono">{secondPairPrice.toFixed(5)}</span>
+          </div>
+        )}
+        {thirdPairPrice && (
+          <div className="flex justify-between">
+            <span>{thirdPair}:</span>
+            <span className="font-mono">${thirdPairPrice.toFixed(2)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export function TriangularOpportunityCard({
@@ -139,7 +175,7 @@ export function TriangularOpportunityCard({
         "opportunity-card transition-all",
         expanded ? "col-span-2" : "", 
         rank && rank <= 3 ? "border-primary/20" : "",
-        profitPercent >= 1.5 ? "bg-success/5 dark:bg-success/10" : ""
+        profitPercent >= 2 ? "bg-success/5 dark:bg-success/10" : ""
       )}
     >
       <CardHeader className="pb-2">
@@ -183,12 +219,24 @@ export function TriangularOpportunityCard({
       <CardContent className="space-y-3 pb-2">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center">
-            <ArrowLeftRight className="mr-1.5 h-4 w-4 text-crypto-purple" />
-            <span className="font-medium crypto-mono text-xs">{path}</span>
+            <RefreshCcw className="mr-1.5 h-4 w-4 text-crypto-blue" />
+            <span className="font-medium crypto-mono">{exchange}</span>
           </div>
           <div className="flex items-center text-muted-foreground text-xs">
             <Clock className="mr-1 h-3.5 w-3.5" />
             <span>{formatTimeAgo(timestamp)}</span>
+          </div>
+        </div>
+
+        {/* Add price display component */}
+        {(opportunity.firstPairPrice || opportunity.secondPairPrice || opportunity.thirdPairPrice) && (
+          <PriceDisplay opportunity={opportunity} />
+        )}
+        
+        <div className="space-y-1.5">
+          <div className="text-muted-foreground text-xs">Path</div>
+          <div className="text-sm">
+            {path}
           </div>
         </div>
 

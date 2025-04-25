@@ -2,6 +2,8 @@ import { Bell, Search, User, Command, ArrowRight, Home, GitCompareArrows, Bot, L
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
+import { DataModeSwitch } from "@/components/DataModeSwitch";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -50,7 +52,7 @@ const navigationItems = [
   {
     category: "Main",
     items: [
-      { name: "Dashboard", icon: Home, href: "/" },
+      { name: "Dashboard", icon: Home, href: "/dashboard" },
       { name: "Profile", icon: User, href: "/profile" },
       { name: "Notifications", icon: Bell, href: "/notifications" },
       { name: "Settings", icon: Settings, href: "/settings" },
@@ -114,7 +116,7 @@ export function Header({ sidebarToggle }: HeaderProps) {
           navigate('/arbitrage/direct');
         }
       } else if (query.includes('dash')) {
-        navigate('/');
+        navigate('/dashboard');
       } else if (query.includes('profile')) {
         navigate('/profile');
       } else if (query.includes('set') || query.includes('config')) {
@@ -247,7 +249,7 @@ export function Header({ sidebarToggle }: HeaderProps) {
               <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">arb</kbd>
               <span>Go to Arbitrage</span>
             </CommandItem>
-            <CommandItem onSelect={() => navigate("/")}>
+            <CommandItem onSelect={() => navigate("/dashboard")}>
               <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">dash</kbd>
               <span>Go to Dashboard</span>
             </CommandItem>
@@ -263,81 +265,58 @@ export function Header({ sidebarToggle }: HeaderProps) {
         </CommandList>
       </CommandDialog>
 
-      <div className="flex items-center gap-1 sm:gap-2">
-        <div className="relative">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative"
-            onClick={() => navigate('/notifications')}
-          >
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notifications</span>
-            <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-crypto-red"></span>
-          </Button>
-          
-          {/* Notification Toast */}
-          {showNotificationToast && (
-            <div className="absolute right-0 top-12 z-50 w-72 animate-in fade-in slide-in-from-top-5 duration-300">
-              <div className="rounded-lg border bg-card p-4 shadow-lg">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-medium flex items-center">
-                    <Bell className="mr-1 h-3 w-3" />
-                    New Notification
+      <div className="flex items-center gap-2">
+        <DataModeSwitch />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to="/notifications">
+                <Button variant="outline" size="icon" className="relative">
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
+                    3
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {recentNotifications[currentNotification].time}
-                  </span>
-                </div>
-                <p className="text-sm font-medium">{recentNotifications[currentNotification].title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {recentNotifications[currentNotification].description}
-                </p>
-                <div className="mt-2 flex justify-end">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 text-xs"
-                    onClick={() => navigate('/notifications')}
-                  >
-                    View All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+                  <span className="sr-only">Notifications</span>
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Notifications</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full border border-border h-8 w-8"
-            >
-              <span className="sr-only">User menu</span>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-sm">
-                TS
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/profile" className="w-full cursor-pointer">Profile</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/settings" className="w-full cursor-pointer">Settings</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={navigateToSettingsBilling} className="cursor-pointer">
-              Billing
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">Log out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserMenu />
       </div>
+
+      {/* Notification toast */}
+      {showNotificationToast && (
+        <div className="absolute right-0 top-12 z-50 w-72 animate-in fade-in slide-in-from-top-5 duration-300">
+          <div className="rounded-lg border bg-card p-4 shadow-lg">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-medium flex items-center">
+                <Bell className="mr-1 h-3 w-3" />
+                New Notification
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {recentNotifications[currentNotification].time}
+              </span>
+            </div>
+            <p className="text-sm font-medium">{recentNotifications[currentNotification].title}</p>
+            <p className="text-xs text-muted-foreground">
+              {recentNotifications[currentNotification].description}
+            </p>
+            <div className="mt-2 flex justify-end">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-7 text-xs"
+                onClick={() => navigate('/notifications')}
+              >
+                View All
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

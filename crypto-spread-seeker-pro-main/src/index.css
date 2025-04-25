@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -47,6 +46,37 @@
     --border: 220 20% 90%;
     --input: 220 20% 90%;
     --ring: 203 79% 59%;
+  }
+  
+  /* Accent color variables */
+  :root[data-accent-color="blue"] {
+    --primary: 203 79% 59%;
+    --ring: 203 79% 59%;
+  }
+  
+  :root[data-accent-color="green"] {
+    --primary: 142 76% 45%;
+    --ring: 142 76% 45%;
+  }
+  
+  :root[data-accent-color="purple"] {
+    --primary: 270 76% 56%;
+    --ring: 270 76% 56%;
+  }
+  
+  :root[data-accent-color="orange"] {
+    --primary: 30 96% 55%;
+    --ring: 30 96% 55%;
+  }
+  
+  :root[data-accent-color="pink"] {
+    --primary: 336 80% 58%;
+    --ring: 336 80% 58%;
+  }
+  
+  :root[data-accent-color="cyan"] {
+    --primary: 184 90% 56%;
+    --ring: 184 90% 56%;
   }
 }
 
@@ -148,6 +178,13 @@
 
 /* Dark mode transition improvements */
 html.dark * {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Light mode transition improvements */
+html.light * {
   transition-property: background-color, border-color, color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;

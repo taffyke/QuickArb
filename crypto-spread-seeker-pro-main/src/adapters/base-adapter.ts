@@ -425,6 +425,13 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       }
     }
   }
+
+  /**
+   * Get a list of all symbols currently subscribed to
+   */
+  public getSubscribedSymbols(): string[] {
+    return Array.from(this.subscriptions);
+  }
 }
 
 /**

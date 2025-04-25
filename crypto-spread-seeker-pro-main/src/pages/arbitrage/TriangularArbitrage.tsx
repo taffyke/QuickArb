@@ -224,6 +224,49 @@ export default function TriangularArbitrage() {
     navigate('/arbitrage-bot');
   };
 
+  // Mock data for triangular arbitrage opportunities
+  const mockTriangularOpportunities: TriangularOpportunity[] = Array.from({ length: 15 }, (_, i) => {
+    const exchanges: Exchange[] = ['Binance', 'Coinbase', 'Kraken', 'KuCoin', 'Bitget', 'Gate.io', 'Bitmart', 'Bybit'];
+    const exchange = exchanges[Math.floor(Math.random() * exchanges.length)];
+    
+    // Generate pairs
+    const firstPair = 'BTC/USDT';
+    const secondPair = 'BTC/ETH';
+    const thirdPair = 'ETH/USDT';
+    
+    // Generate profit percent between 0.2% and 3.5%
+    const profitPercent = 0.2 + Math.random() * 3.3;
+    
+    // Generate estimated profit
+    const estimatedProfit = 50 + Math.random() * 450;
+    
+    // Generate fees
+    const fees = estimatedProfit * (0.05 + Math.random() * 0.15);
+    
+    // Generate prices for each pair
+    const firstPairPrice = 30000 + Math.random() * 20000; // BTC/USDT
+    const secondPairPrice = 15 + Math.random() * 5;       // BTC/ETH
+    const thirdPairPrice = 2000 + Math.random() * 1000;   // ETH/USDT
+    
+    return {
+      id: `tri-${i}`,
+      exchange,
+      firstPair,
+      secondPair,
+      thirdPair,
+      profitPercent,
+      timestamp: new Date(),
+      path: `${firstPair} → ${secondPair} → ${thirdPair}`,
+      estimatedProfit,
+      fees,
+      netProfit: estimatedProfit - fees,
+      // Add current prices for all pairs
+      firstPairPrice,
+      secondPairPrice,
+      thirdPairPrice
+    };
+  }).sort((a, b) => b.profitPercent - a.profitPercent);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -520,7 +563,7 @@ export default function TriangularArbitrage() {
                   }}
                 />
                 <Label htmlFor="app">App Notification</Label>
-          </div>
+              </div>
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="email" 
@@ -534,9 +577,9 @@ export default function TriangularArbitrage() {
                   }}
                 />
                 <Label htmlFor="email">Email</Label>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAlertDialog(false)}>Cancel</Button>
             <Button onClick={createAlert}>Create Alert</Button>

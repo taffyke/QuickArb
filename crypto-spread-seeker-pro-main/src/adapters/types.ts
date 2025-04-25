@@ -50,6 +50,12 @@ export interface ExchangeAdapter {
   getSupportedSymbols(): Promise<string[]>;
   
   /**
+   * Get currently subscribed symbols
+   * @returns Array of symbols the adapter is currently subscribed to
+   */
+  getSubscribedSymbols(): string[];
+  
+  /**
    * Fetch current price data for a symbol via REST API
    * @param symbol Unified symbol format (e.g. "BTC-USDT")
    */

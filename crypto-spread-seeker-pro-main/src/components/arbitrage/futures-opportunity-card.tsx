@@ -29,6 +29,41 @@ type FuturesOpportunityCardProps = {
   onExecute?: (opportunity: FuturesOpportunity) => void;
 };
 
+// Add a dedicated price display component for better visibility
+const PriceDisplay = ({ 
+  opportunity
+}: { 
+  opportunity: FuturesOpportunity 
+}) => {
+  const { spotPrice, futuresPrice, spreadPercent, pair } = opportunity;
+  const isPremium = futuresPrice > spotPrice;
+  
+  return (
+    <div className="bg-muted/50 rounded-md p-2 mt-2">
+      <h4 className="text-xs font-medium mb-1.5">Current Prices</h4>
+      <div className="grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between">
+          <span>Spot Price:</span>
+          <span className="font-mono">${spotPrice.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Futures Price:</span>
+          <span className="font-mono">${futuresPrice.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between col-span-2">
+          <span>Spread:</span>
+          <span className={cn(
+            "font-mono",
+            isPremium ? "text-crypto-blue" : "text-crypto-yellow"
+          )}>
+            {isPremium ? "+" : "-"}${Math.abs(futuresPrice - spotPrice).toFixed(2)} ({Math.abs(spreadPercent).toFixed(2)}%)
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function FuturesOpportunityCard({
   opportunity,
   rank,
@@ -202,8 +237,8 @@ export function FuturesOpportunityCard({
       <CardContent className="space-y-3 pb-2">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center">
-            <LineChart className="mr-1.5 h-4 w-4 text-crypto-blue" />
-            <span className="font-medium crypto-mono">{pair}</span>
+            <ChevronsUpDown className="mr-1.5 h-4 w-4 text-crypto-blue" />
+            <span className="font-medium">{pair}</span>
           </div>
           <div className="flex items-center text-muted-foreground text-xs">
             <Clock className="mr-1 h-3.5 w-3.5" />
@@ -211,92 +246,82 @@ export function FuturesOpportunityCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="space-y-1">
-            <div className="text-muted-foreground text-xs">Funding Rate</div>
-            <div className={cn(
-              "font-medium crypto-mono",
-              fundingRate > 0 ? "text-crypto-green" : fundingRate < 0 ? "text-crypto-red" : ""
-            )}>
-              {fundingRateDisplay} / {fundingInterval}
+        {/* Add Price Display component */}
+        <PriceDisplay opportunity={opportunity} />
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Funding Rate:</div>
+          <div className={cn(
+            "font-medium",
+            fundingRate > 0 ? "text-crypto-blue" : "text-crypto-yellow"
+          )}>
+            {fundingRateDisplay} per {fundingInterval}
+          </div>
+        </div>
+        
+        {expanded && (
+          <div className="mt-3 space-y-3">
+            <div className="bg-muted/40 p-2 rounded-md text-xs space-y-2">
+              <div className="font-medium">Strategy Details</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div className="text-muted-foreground">Spot Price:</div>
+                <div className="font-mono text-right">${spotPrice.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Futures Price:</div>
+                <div className="font-mono text-right">${futuresPrice.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Spread:</div>
+                <div className="font-mono text-right">${Math.abs(futuresPrice - spotPrice).toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Net Profit (est.):</div>
+                <div className="font-mono text-right">${netProfit.toFixed(2)}</div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-muted-foreground text-xs">Spot Price</div>
-            <div className="font-medium crypto-mono">${spotPrice.toFixed(2)}</div>
-          </div>
-          
-          {expanded ? (
-            <>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Futures Price</div>
-                <div className="font-medium crypto-mono">${futuresPrice.toFixed(2)}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Est. Profit</div>
-                <div className="font-medium crypto-mono text-crypto-green">${estimatedProfit.toFixed(2)}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Fees</div>
-                <div className="font-medium crypto-mono text-crypto-red">${fees.toFixed(2)}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Net Profit</div>
-                <div className="font-medium crypto-mono text-crypto-green">${netProfit.toFixed(2)}</div>
-              </div>
-              
+            
+            <div className="flex items-center justify-between text-sm">
+              <div className="text-muted-foreground">Network Transfer:</div>
               {bestNetwork && (
-                <div className="col-span-2 space-y-1 bg-muted/50 p-2 rounded-md mt-1">
-                  <div className="text-xs font-medium flex items-center justify-between">
-                    <span className="flex items-center">
-                      <Network className="h-3.5 w-3.5 mr-1.5" /> 
-                      Best Network: {bestNetwork.name}
-                    </span>
-                    <Badge variant="outline" className={getCongestionColor(bestNetwork.congestion)}>
-                      {bestNetwork.congestion}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 text-xs mt-1">
-                    <div>Fee: ${bestNetwork.fee.toFixed(2)}</div>
-                    <div>Time: ~{bestNetwork.estimatedTimeMinutes} min</div>
-                  </div>
+                <div className="flex items-center">
+                  <Network className="mr-1 h-3.5 w-3.5 text-primary" />
+                  <span className="mr-1">{bestNetwork.name}</span>
+                  <span className={cn(
+                    "text-xs",
+                    getCongestionColor(bestNetwork.congestion)
+                  )}>
+                    ({bestNetwork.congestion} congestion)
+                  </span>
                 </div>
               )}
-            </>
-          ) : (
-            <>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Futures Price</div>
-                <div className="font-medium crypto-mono">${futuresPrice.toFixed(2)}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs">Next Funding</div>
-                <div className="font-medium crypto-mono flex items-center">
-                  <Hourglass className="mr-1 h-3.5 w-3.5" />
-                  <span>3h 24m</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter className="pt-2">
-        {expanded ? (
-          <Button size="sm" className="w-full" onClick={handleExecute}>
-            <DollarSign className="mr-2 h-4 w-4" />
-            Execute Arbitrage
-          </Button>
-        ) : (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="w-full text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 cursor-pointer"
-          >
-            <span>Click for more details</span>
-            <ChevronDown className="h-4 w-4 transition-transform" />
-          </Button>
+            </div>
+            
+            <Button 
+              onClick={handleExecute} 
+              className="w-full gap-1"
+              variant="default"
+              size="sm"
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              Execute Trade
+            </Button>
+          </div>
         )}
-      </CardFooter>
+      </CardContent>
+      {!expanded && (
+        <CardFooter className="pt-0 flex justify-between items-center">
+          <div className="flex items-center text-sm">
+            <DollarSign className="h-4 w-4 mr-1 text-green-500" />
+            <span className="font-medium">Est. profit: ${netProfit.toFixed(2)}</span>
+          </div>
+          <Button 
+            onClick={handleExecute} 
+            className="ml-auto gap-1" 
+            size="sm"
+            variant="outline"
+          >
+            Execute <ChevronRight className="h-4 w-4" />
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 }

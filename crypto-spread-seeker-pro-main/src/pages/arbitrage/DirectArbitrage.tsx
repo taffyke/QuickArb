@@ -59,44 +59,56 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
-// Mock data for development since imported module is not available
-const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 15 }, (_, i) => {
-  const mockExchanges: Exchange[] = [
-    'Binance', 'Bitget', 'Bybit', 'KuCoin', 'Gate.io', 
-    'Bitfinex', 'Gemini', 'Coinbase', 'Kraken', 'Poloniex',
-    'OKX', 'AscendEX', 'Bittrue', 'HTX', 'MEXC'
-  ];
-  
-  const fromExchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
+// Generate mock arbitrage opportunities for testing
+const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 20 }).map((_, i) => {
+  // Generate random exchanges
+  const exchangeList: Exchange[] = ['Binance', 'Coinbase', 'Kraken', 'KuCoin', 'Bitget', 'Gate.io', 'Bitmart', 'Bybit'];
+  const fromExchange = exchangeList[Math.floor(Math.random() * exchangeList.length)];
   let toExchange;
   do {
-    toExchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
-  } while (fromExchange === toExchange);
+    toExchange = exchangeList[Math.floor(Math.random() * exchangeList.length)];
+  } while (toExchange === fromExchange);
   
-  const spreadPercent = (Math.random() * 5) + 0.5;
-  const volume = 500000 + Math.random() * 5000000;
-  const estimatedProfit = volume * (spreadPercent / 100);
+  // Generate random spread percent between 0.2% and 4.5%
+  const spreadPercent = 0.2 + Math.random() * 4.3;
   
-  // Create mock network info
+  // Generate random 24h volume
+  const volume = 500000 + Math.random() * 20000000;
+  
+  // Calculate estimated profit (0.1% of volume * spread)
+  const estimatedProfit = volume * 0.001 * (spreadPercent / 100);
+  
+  // Generate a base price between 30,000 and 50,000
+  const basePrice = 30000 + Math.random() * 20000;
+  
+  // Calculate prices for each exchange based on the spread
+  const lowerPrice = basePrice;
+  const higherPrice = basePrice * (1 + spreadPercent / 100);
+  
+  // Assign prices to exchanges
+  const fromExchangePrice = Math.random() > 0.5 ? lowerPrice : higherPrice;
+  const toExchangePrice = fromExchangePrice === lowerPrice ? higherPrice : lowerPrice;
+  
+  // Generate mock network transfer options
   const networks = [
     {
       name: "Ethereum",
       fee: 5 + Math.random() * 15,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 5 + Math.floor(Math.random() * 20)
+      speed: "Medium",
+      congestion: "Medium",
+      estimatedTimeMinutes: 8 + Math.floor(Math.random() * 7)
     },
     {
       name: "Binance Smart Chain",
       fee: 0.5 + Math.random() * 2,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 5)
+      speed: "Fast",
+      congestion: "Low",
+      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 4)
     },
     {
       name: "Solana",
       fee: 0.01 + Math.random() * 0.05,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
+      speed: "Fast",
       congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
       estimatedTimeMinutes: 1 + Math.floor(Math.random() * 2)
     }
@@ -115,7 +127,7 @@ const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 
     fromExchange,
     toExchange,
     pair: 'BTC/USDT',
-    spreadAmount: 100 + Math.random() * 900,
+    spreadAmount: Math.abs(toExchangePrice - fromExchangePrice),
     spreadPercent,
     volume24h: volume,
     timestamp: new Date(),
@@ -128,7 +140,9 @@ const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 
       exchangeFees,
       networkFees,
       otherFees
-    }
+    },
+    fromExchangePrice,
+    toExchangePrice
   };
 }).sort((a, b) => b.spreadPercent - a.spreadPercent);
 

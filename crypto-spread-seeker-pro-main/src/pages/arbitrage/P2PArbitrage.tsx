@@ -29,7 +29,9 @@ import {
   ArrowRight,
   AlertCircle,
   SlidersHorizontal,
-  Bell
+  Bell,
+  Clock,
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +68,109 @@ interface P2PArbitrageOpportunity {
   maxAmount: number;
   estimatedProfit: number;
   timestamp: Date;
+}
+
+// Add a P2P Opportunity Card component with price display
+const P2POpportunityCard = ({ 
+  opportunity, 
+  profitEstimate, 
+  onExecute 
+}: { 
+  opportunity: P2PArbitrageOpportunity;
+  profitEstimate: any;
+  onExecute: (opportunity: P2PArbitrageOpportunity) => void;
+}) => {
+  // Format timestamp
+  const formatTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return 'Today';
+  };
+
+  return (
+    <Card className={cn(
+      "opportunity-card transition-all",
+      opportunity.spreadPercent >= 3 ? "bg-success/5 dark:bg-success/10" : ""
+    )}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <Users className="mr-1.5 h-4 w-4 text-blue-500" />
+            {opportunity.exchange} P2P
+          </CardTitle>
+          <Badge variant={opportunity.spreadPercent >= 3 ? "default" : "outline"}>
+            {opportunity.spreadPercent.toFixed(2)}%
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pb-2">
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center">
+            <span className="font-medium">{opportunity.cryptoCurrency}/{opportunity.fiatCurrency}</span>
+          </div>
+          <div className="flex items-center text-muted-foreground text-xs">
+            <Clock className="mr-1 h-3.5 w-3.5" />
+            <span>{formatTimeAgo(opportunity.timestamp)}</span>
+          </div>
+        </div>
+
+        {/* Price Display */}
+        <div className="bg-muted/50 rounded-md p-2 mt-2">
+          <h4 className="text-xs font-medium mb-1.5">Current Prices</h4>
+          <div className="grid grid-cols-1 gap-1.5 text-xs">
+            <div className="flex justify-between">
+              <span>Buy Price:</span>
+              <span className="font-mono">${opportunity.buyPrice.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Sell Price:</span>
+              <span className="font-mono">${opportunity.sellPrice.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Spread:</span>
+              <span className="font-mono text-green-500">
+                ${(opportunity.sellPrice - opportunity.buyPrice).toFixed(2)} ({opportunity.spreadPercent.toFixed(2)}%)
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Payment Method:</div>
+          <div className="font-medium">{opportunity.paymentMethod}</div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Completion Rate:</div>
+          <div className="font-medium">{opportunity.completionRate}%</div>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Limits:</div>
+          <div className="font-medium">${opportunity.minAmount} - ${opportunity.maxAmount}</div>
+        </div>
+      </CardContent>
+      <CardFooter className="pt-0 flex justify-between items-center">
+        <div className="flex items-center text-sm">
+          <DollarSign className="h-4 w-4 mr-1 text-green-500" />
+          <span className="font-medium">Est. profit: ${profitEstimate.netProfit.toFixed(2)}</span>
+        </div>
+        <Button 
+          onClick={() => onExecute(opportunity)} 
+          className="ml-auto gap-1" 
+          size="sm"
+          variant="outline"
+        >
+          Execute <ChevronRight className="h-4 w-4" />
+        </Button>
+      </CardFooter>
+    </Card>
+  );
 }
 
 export default function P2PArbitrage() {
@@ -502,83 +607,7 @@ export default function P2PArbitrage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {opportunitiesWithProfitEstimates.length > 0 ? (
               opportunitiesWithProfitEstimates.map((opportunity) => (
-                <Card key={opportunity.id} className={cn(
-                  "transition-all overflow-hidden",
-                  opportunity.spreadPercent >= 5 ? "border-primary" : "",
-                  expandedOpportunity === opportunity.id ? "col-span-full" : ""
-                )}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base">
-                          {opportunity.cryptoCurrency}/{opportunity.fiatCurrency} on {opportunity.exchange}
-                        </CardTitle>
-                        <CardDescription>
-                          via {opportunity.paymentMethod}
-                        </CardDescription>
-                      </div>
-                      <Badge variant={opportunity.spreadPercent >= 4 ? "default" : "outline"} className="capitalize">
-                        {opportunity.spreadPercent.toFixed(2)}%
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pb-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Buy Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.buyPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Sell Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.sellPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      
-                      {showProfitEstimates && (
-                        <>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">Est. Profit</div>
-                            <div className="font-medium text-green-500">
-                              {opportunity.fiatCurrency} {opportunity.profitEstimate.netProfit.toFixed(2)}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">ROI</div>
-                            <div className="font-medium text-blue-500">
-                              {opportunity.profitEstimate.roi.toFixed(2)}%
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      
-                      <div className="col-span-2 space-y-1 mt-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-muted-foreground">Completion Rate</span>
-                          <span className={cn(
-                            opportunity.completionRate >= 95 ? "text-green-500" : 
-                            opportunity.completionRate >= 90 ? "text-amber-500" : "text-red-500"
-                          )}>
-                            {opportunity.completionRate}%
-                          </span>
-                        </div>
-                        <Progress value={opportunity.completionRate} className="h-1" />
-                      </div>
-                    </div>
-                  </CardContent>
-                  
-                  <CardFooter className="flex justify-between pt-2">
-                    <div className="text-xs text-muted-foreground">
-                      Limits: {opportunity.fiatCurrency} {opportunity.minAmount} - {opportunity.maxAmount}
-                    </div>
-                    <Button variant="default" size="sm" className="gap-1" onClick={() => executeViaArbitrageBot(opportunity)}>
-                      Execute <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardFooter>
-                </Card>
+                <P2POpportunityCard key={opportunity.id} opportunity={opportunity} profitEstimate={opportunity.profitEstimate} onExecute={executeViaArbitrageBot} />
               ))
             ) : (
               <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
@@ -600,83 +629,7 @@ export default function P2PArbitrage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {opportunitiesWithProfitEstimates.length > 0 ? (
               opportunitiesWithProfitEstimates.map((opportunity) => (
-                <Card key={opportunity.id} className={cn(
-                  "transition-all overflow-hidden",
-                  opportunity.spreadPercent >= 5 ? "border-primary" : "",
-                  expandedOpportunity === opportunity.id ? "col-span-full" : ""
-                )}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base">
-                          {opportunity.cryptoCurrency}/{opportunity.fiatCurrency} on {opportunity.exchange}
-                        </CardTitle>
-                        <CardDescription>
-                          via {opportunity.paymentMethod}
-                        </CardDescription>
-                      </div>
-                      <Badge variant={opportunity.spreadPercent >= 4 ? "default" : "outline"} className="capitalize">
-                        {opportunity.spreadPercent.toFixed(2)}%
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pb-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Buy Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.buyPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Sell Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.sellPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      
-                      {showProfitEstimates && (
-                        <>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">Est. Profit</div>
-                            <div className="font-medium text-green-500">
-                              {opportunity.fiatCurrency} {opportunity.profitEstimate.netProfit.toFixed(2)}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">ROI</div>
-                            <div className="font-medium text-blue-500">
-                              {opportunity.profitEstimate.roi.toFixed(2)}%
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      
-                      <div className="col-span-2 space-y-1 mt-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-muted-foreground">Completion Rate</span>
-                          <span className={cn(
-                            opportunity.completionRate >= 95 ? "text-green-500" : 
-                            opportunity.completionRate >= 90 ? "text-amber-500" : "text-red-500"
-                          )}>
-                            {opportunity.completionRate}%
-                          </span>
-                        </div>
-                        <Progress value={opportunity.completionRate} className="h-1" />
-                      </div>
-                    </div>
-                  </CardContent>
-                  
-                  <CardFooter className="flex justify-between pt-2">
-                    <div className="text-xs text-muted-foreground">
-                      Limits: {opportunity.fiatCurrency} {opportunity.minAmount} - {opportunity.maxAmount}
-                    </div>
-                    <Button variant="default" size="sm" className="gap-1" onClick={() => executeViaArbitrageBot(opportunity)}>
-                      Execute <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardFooter>
-                </Card>
+                <P2POpportunityCard key={opportunity.id} opportunity={opportunity} profitEstimate={opportunity.profitEstimate} onExecute={executeViaArbitrageBot} />
               ))
             ) : (
               <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
@@ -698,83 +651,7 @@ export default function P2PArbitrage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {opportunitiesWithProfitEstimates.length > 0 ? (
               opportunitiesWithProfitEstimates.map((opportunity) => (
-                <Card key={opportunity.id} className={cn(
-                  "transition-all overflow-hidden",
-                  opportunity.spreadPercent >= 5 ? "border-primary" : "",
-                  expandedOpportunity === opportunity.id ? "col-span-full" : ""
-                )}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base">
-                          {opportunity.cryptoCurrency}/{opportunity.fiatCurrency} on {opportunity.exchange}
-                        </CardTitle>
-                        <CardDescription>
-                          via {opportunity.paymentMethod}
-                        </CardDescription>
-                      </div>
-                      <Badge variant={opportunity.spreadPercent >= 4 ? "default" : "outline"} className="capitalize">
-                        {opportunity.spreadPercent.toFixed(2)}%
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pb-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Buy Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.buyPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Sell Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.sellPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      
-                      {showProfitEstimates && (
-                        <>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">Est. Profit</div>
-                            <div className="font-medium text-green-500">
-                              {opportunity.fiatCurrency} {opportunity.profitEstimate.netProfit.toFixed(2)}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">ROI</div>
-                            <div className="font-medium text-blue-500">
-                              {opportunity.profitEstimate.roi.toFixed(2)}%
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      
-                      <div className="col-span-2 space-y-1 mt-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-muted-foreground">Completion Rate</span>
-                          <span className={cn(
-                            opportunity.completionRate >= 95 ? "text-green-500" : 
-                            opportunity.completionRate >= 90 ? "text-amber-500" : "text-red-500"
-                          )}>
-                            {opportunity.completionRate}%
-                          </span>
-                        </div>
-                        <Progress value={opportunity.completionRate} className="h-1" />
-                      </div>
-                    </div>
-                  </CardContent>
-                  
-                  <CardFooter className="flex justify-between pt-2">
-                    <div className="text-xs text-muted-foreground">
-                      Limits: {opportunity.fiatCurrency} {opportunity.minAmount} - {opportunity.maxAmount}
-                    </div>
-                    <Button variant="default" size="sm" className="gap-1" onClick={() => executeViaArbitrageBot(opportunity)}>
-                      Execute <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardFooter>
-                </Card>
+                <P2POpportunityCard key={opportunity.id} opportunity={opportunity} profitEstimate={opportunity.profitEstimate} onExecute={executeViaArbitrageBot} />
               ))
             ) : (
               <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
@@ -796,83 +673,7 @@ export default function P2PArbitrage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {opportunitiesWithProfitEstimates.length > 0 ? (
               opportunitiesWithProfitEstimates.map((opportunity) => (
-                <Card key={opportunity.id} className={cn(
-                  "transition-all overflow-hidden",
-                  opportunity.spreadPercent >= 5 ? "border-primary" : "",
-                  expandedOpportunity === opportunity.id ? "col-span-full" : ""
-                )}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base">
-                          {opportunity.cryptoCurrency}/{opportunity.fiatCurrency} on {opportunity.exchange}
-                        </CardTitle>
-                        <CardDescription>
-                          via {opportunity.paymentMethod}
-                        </CardDescription>
-                      </div>
-                      <Badge variant={opportunity.spreadPercent >= 4 ? "default" : "outline"} className="capitalize">
-                        {opportunity.spreadPercent.toFixed(2)}%
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pb-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Buy Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.buyPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-muted-foreground text-xs">Sell Price</div>
-                        <div className="font-medium">
-                          {opportunity.fiatCurrency} {opportunity.sellPrice.toLocaleString()}
-                        </div>
-                      </div>
-                      
-                      {showProfitEstimates && (
-                        <>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">Est. Profit</div>
-                            <div className="font-medium text-green-500">
-                              {opportunity.fiatCurrency} {opportunity.profitEstimate.netProfit.toFixed(2)}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground text-xs">ROI</div>
-                            <div className="font-medium text-blue-500">
-                              {opportunity.profitEstimate.roi.toFixed(2)}%
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      
-                      <div className="col-span-2 space-y-1 mt-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-muted-foreground">Completion Rate</span>
-                          <span className={cn(
-                            opportunity.completionRate >= 95 ? "text-green-500" : 
-                            opportunity.completionRate >= 90 ? "text-amber-500" : "text-red-500"
-                          )}>
-                            {opportunity.completionRate}%
-                          </span>
-                        </div>
-                        <Progress value={opportunity.completionRate} className="h-1" />
-                      </div>
-                    </div>
-                  </CardContent>
-                  
-                  <CardFooter className="flex justify-between pt-2">
-                    <div className="text-xs text-muted-foreground">
-                      Limits: {opportunity.fiatCurrency} {opportunity.minAmount} - {opportunity.maxAmount}
-                    </div>
-                    <Button variant="default" size="sm" className="gap-1" onClick={() => executeViaArbitrageBot(opportunity)}>
-                      Execute <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardFooter>
-                </Card>
+                <P2POpportunityCard key={opportunity.id} opportunity={opportunity} profitEstimate={opportunity.profitEstimate} onExecute={executeViaArbitrageBot} />
               ))
             ) : (
               <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">

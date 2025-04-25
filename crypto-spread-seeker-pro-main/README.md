@@ -1,4 +1,133 @@
-# Welcome to your Lovable project
+# Crypto Spread Seeker Pro
+
+A professional-grade application for finding and executing cross-exchange cryptocurrency arbitrage opportunities.
+
+## Features
+
+- **Multi-Exchange Support**: Connect to 16+ cryptocurrency exchanges
+- **Real-Time Data**: Websocket connections for instant price updates
+- **Advanced Arbitrage Detection**: Direct, triangular, and cross-exchange opportunities
+- **Secure API Management**: Your exchange API keys are locally encrypted
+- **Customizable Alerts**: Set notifications for specific opportunities
+- **Risk Management Tools**: Control exposure and monitor execution
+- **User-Friendly Interface**: Clean, modern UI with detailed visualizations
+- **Supabase Backend**: Secure storage of encrypted API keys and user preferences
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 16+
+- npm or yarn
+- A Supabase account (free tier works for development)
+
+### Installation
+
+1. Clone the repository
+```
+git clone https://github.com/yourusername/crypto-spread-seeker-pro.git
+cd crypto-spread-seeker-pro
+```
+
+2. Install dependencies
+```
+npm install
+# or
+yarn
+```
+
+3. Set up Supabase
+   - Follow the instructions in [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)
+   - Create a `.env.local` file with your Supabase credentials based on `.env.example`
+
+4. Start the development server
+```
+npm run dev
+# or
+yarn dev
+```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Configuration
+
+1. API Keys: Add your exchange API keys in the Profile section
+2. Exchanges: Select which exchanges to monitor
+3. Pairs: Configure the trading pairs you're interested in
+4. Alerts: Set up notification preferences
+5. Execution Settings: Configure trade execution parameters (if enabled)
+
+## Exchange Support
+
+Currently supported exchanges:
+- Binance
+- Bitget
+- Bybit
+- KuCoin
+- Gate.io
+- Bitmart
+- Bitfinex
+- Gemini
+- Coinbase
+- Kraken
+- Poloniex
+- OKX
+- AscendEX
+- Bittrue
+- HTX
+- MEXC
+
+## Architecture
+
+- **Frontend**: Next.js-based React application
+- **State Management**: React Context API and custom hooks
+- **Exchange Connectivity**: CCXT library with custom adapters
+- **Data Storage**: Supabase (PostgreSQL + Auth + Storage)
+- **Encryption**: AES-256-GCM for sensitive data
+
+## Security
+
+- API keys are encrypted with AES-256-GCM before being stored
+- Local encryption key never leaves your browser
+- Option to use read-only API keys for maximum security
+- All data is stored in your Supabase instance that you control
+- Row-level security ensures users can only access their own data
+
+## Development
+
+### Project Structure
+
+```
+/src
+  /adapters         # Exchange-specific adapters
+  /components       # React components
+  /contexts         # React context providers
+  /lib              # Utility functions
+  /pages            # Next.js pages
+  /services         # Core services
+  /styles           # CSS and style-related files
+  /types            # TypeScript type definitions
+/supabase           # Supabase configuration and migrations
+/docs               # Documentation
+```
+
+### Adding a New Exchange
+
+1. Create a new adapter in `/src/adapters`
+2. Implement the required interface methods
+3. Add the exchange to the factory in `adapter-factory.ts`
+4. Update the exchange list in the UI components
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- [CCXT](https://github.com/ccxt/ccxt) for exchange connectivity
+- [Supabase](https://supabase.io/) for authentication and data storage
+- [Next.js](https://nextjs.org/) for the React framework
+- [shadcn/ui](https://ui.shadcn.com/) for the UI components
 
 ## Project info
 
@@ -153,3 +282,157 @@ To add support for a new exchange:
 4. Register the adapter in `exchange-manager.ts`
 
 Detailed instructions can be found in `src/adapters/README.md`.
+
+## Crypto Arbitrage Scanner Pro
+
+A professional-grade cryptocurrency arbitrage scanner that identifies profit opportunities across multiple exchanges in real-time.
+
+## User-Specific Exchange API Key Management
+
+This platform implements a secure, per-user management system for exchange API credentials, enabling traders to utilize their own exchange accounts for direct arbitrage analysis and execution.
+
+### Key Security Features
+
+- **AES-256-GCM Encryption**: All API keys and secrets are encrypted using AES-256-GCM, a high-security authenticated encryption algorithm
+- **AWS KMS Integration**: Encryption keys are managed by AWS KMS, with per-user master keys
+- **Memory-Only Decryption**: Credentials are only decrypted in memory when establishing exchange connections, and never persisted in plaintext
+- **Secure Storage**: Encrypted credentials are stored in the database with separate encryption for each user
+- **Fine-grained Permissions**: Users can specify read-only, trading, or withdrawal permissions for each key
+- **Key Rotation**: Support for safely rotating API keys without service interruption
+
+### How it Works
+
+1. When a user adds an API key, the credentials are immediately encrypted using a data key specific to that user
+2. The encryption keys are managed by AWS KMS, with each user having their own master key
+3. When starting a trading session, only the necessary adapters for exchanges with valid credentials are loaded
+4. Adapters are dynamically instantiated based on user preferences, optimizing resource usage
+5. All arbitrage analysis occurs on the user's specific set of exchanges
+
+### Adding a New Exchange Adapter
+
+To add support for a new cryptocurrency exchange:
+
+1. **Create a New Adapter Class**:
+   
+   Create a new file in `src/adapters/` named `[exchange-name]-adapter.ts` implementing the `ExchangeAdapter` interface:
+
+   ```typescript
+   import { BaseAdapter } from './base-adapter';
+   import { Exchange } from '../contexts/crypto-context';
+   import { ExchangeAdapterConfig, ExchangePriceData } from './types';
+
+   export class NewExchangeAdapter extends BaseAdapter {
+     constructor(exchange: Exchange, config?: Partial<ExchangeAdapterConfig>) {
+       super(exchange, config);
+       this.restBaseUrl = 'https://api.newexchange.com';
+       this.wsBaseUrl = 'wss://ws.newexchange.com';
+     }
+
+     protected async setupWebSocket(): Promise<void> {
+       // Implement WebSocket connection setup
+     }
+
+     protected handleWebSocketMessage(data: any): void {
+       // Parse exchange-specific message format and emit price updates
+     }
+
+     public async subscribeToSymbol(symbol: string): Promise<void> {
+       // Implement symbol subscription
+     }
+
+     public async unsubscribeFromSymbol(symbol: string): Promise<void> {
+       // Implement symbol unsubscription
+     }
+
+     public async getSupportedSymbols(): Promise<string[]> {
+       // Fetch and return supported symbols
+     }
+   }
+   ```
+
+2. **Register the Adapter in the Factory**:
+
+   Update `src/adapters/adapter-factory.ts` to include the new exchange:
+
+   ```typescript
+   const adapterModuleMap: Record<Exchange, string> = {
+     // Existing exchanges...
+     'NewExchange': './newexchange-adapter'
+   };
+   ```
+
+3. **Update Exchange Type**:
+
+   Add the new exchange to the `Exchange` type in `src/contexts/crypto-context.ts`:
+
+   ```typescript
+   export type Exchange = 
+     | 'Binance'
+     | 'Bybit'
+     // Other exchanges...
+     | 'NewExchange';
+   ```
+
+4. **Add UI Configuration**:
+
+   Update the UI components to include the new exchange, like in `ApiKeyManager.tsx`:
+
+   ```typescript
+   // Add to supported exchanges
+   const supportedExchanges: Exchange[] = [
+     // Existing exchanges...
+     'NewExchange'
+   ];
+
+   // Specify if passphrase is required
+   const exchangesWithPassphrase: Record<Exchange, boolean> = {
+     // Existing exchanges...
+     'NewExchange': false
+   };
+   ```
+
+5. **Testing the New Adapter**:
+
+   Create a test file in `src/adapters/tests/newexchange-adapter.test.ts`:
+
+   ```typescript
+   import { NewExchangeAdapter } from '../newexchange-adapter';
+   import { Exchange } from '../../contexts/crypto-context';
+
+   describe('NewExchangeAdapter', () => {
+     let adapter: NewExchangeAdapter;
+
+     beforeEach(() => {
+       adapter = new NewExchangeAdapter('NewExchange' as Exchange);
+     });
+
+     afterEach(async () => {
+       await adapter.disconnect();
+     });
+
+     test('should connect to websocket', async () => {
+       // Test websocket connection
+     });
+
+     test('should subscribe to symbols', async () => {
+       // Test symbol subscription
+     });
+   });
+   ```
+
+### System Architecture for Multi-User Exchange Management
+
+The platform architecture consists of several key components working together:
+
+1. **ProfileService**: Manages user profiles and API key storage/retrieval
+2. **EncryptionService**: Handles secure encryption/decryption of API credentials
+3. **UserSessionManager**: Dynamically initializes adapters based on user credentials
+4. **Adapter Factory**: Creates the right adapter instances for exchanges with valid credentials
+5. **ExchangeAdapter**: Interface implemented by all exchange-specific adapters
+6. **ArbitrageServices**: Analyze opportunities across user-specific exchange instances
+
+This architecture ensures:
+- Strong separation of concerns
+- Resource efficiency (only loading adapters actually used)
+- Per-user isolation of exchange connections
+- Maintainable codebase that's easy to extend with new exchanges

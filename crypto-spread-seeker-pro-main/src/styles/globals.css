@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222.2 84% 6.9%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 173 43% 38%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 217.2 32.6% 12%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 173 43% 15%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 173 43% 38%;
+    
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Marquee animations */
+  .animate-marquee-left {
+    animation: marquee-left linear infinite;
+  }
+  
+  .animate-marquee-right {
+    animation: marquee-right linear infinite;
+  }
+  
+  /* Pause on hover */
+  .hover\:pause:hover {
+    animation-play-state: paused;
+  }
+  
+  @keyframes marquee-left {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(calc(-100% - 2rem));
+    }
+  }
+  
+  @keyframes marquee-right {
+    0% {
+      transform: translateX(calc(-100% - 2rem));
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+  
+  /* Scroll-triggered animations */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.8s ease;
+  }
+  
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  .reveal-left {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: all 0.8s ease;
+  }
+  
+  .reveal-right {
+    opacity: 0;
+    transform: translateX(50px);
+    transition: all 0.8s ease;
+  }
+  
+  .reveal-left.visible,
+  .reveal-right.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .reveal-scale {
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.8s ease;
+  }
+  
+  .reveal-scale.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+} 

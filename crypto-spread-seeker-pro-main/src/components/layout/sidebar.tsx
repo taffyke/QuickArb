@@ -19,7 +19,7 @@ const navItems = [
   {
     title: "Dashboard",
     icon: Home,
-    href: "/",
+    href: "/dashboard",
   },
   {
     title: "Arbitrage",

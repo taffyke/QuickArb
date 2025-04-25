@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSupabase } from "@/contexts/supabase-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -28,36 +30,55 @@ import {
   Wallet, 
   RefreshCw, 
   Clock,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { exchangeNames, exchanges, getExchangeByName } from "@/constants/exchanges";
+import { ExchangeApiManager } from "@/components/profile/ExchangeApiManager";
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { user, signOut } = useSupabase();
+  const isDemo = localStorage.getItem('demo_bypass_token') === 'enabled';
   
-  // Mock user data
+  const handleSignOut = async () => {
+    try {
+      console.log('Sign-out initiated');
+      if (isDemo) {
+        // In demo mode, just clear the local storage token
+        localStorage.removeItem('demo_bypass_token');
+        console.log('Demo token removed');
+        navigate('/');
+      } else {
+        // Real sign out
+        await signOut();
+        console.log('User signed out');
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+  
+  // User data with fallbacks to demo data
   const userData = {
-    name: "Alex Johnson",
-    email: "alex@example.com",
+    name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Demo User",
+    email: user?.email || "demo@example.com",
     plan: "Pro",
     joined: "April 2024",
     lastLogin: "2 hours ago",
-    avatarUrl: "",
+    avatarUrl: user?.user_metadata?.avatar_url || "",
     notificationsEnabled: true,
     twoFactorEnabled: false,
     savedExchanges: ["Binance", "Coinbase", "KuCoin"],
-    apiKeys: [
-      { id: "api1", exchange: "Binance", label: "Main Account", lastUsed: "Today" },
-      { id: "api2", exchange: "Coinbase", label: "Trading Bot", lastUsed: "Yesterday" }
-    ]
+    userId: user?.id || "demo-user"
+  };
+
+  // Get initials for avatar fallback
+  const getInitials = (name: string) => {
+    return name.split(' ')
+      .map(part => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('');
   };
 
   return (
@@ -78,9 +99,14 @@ export default function Profile() {
                 <Copy className="h-4 w-4" />
                 <span>Export Data</span>
               </Button>
-              <Button variant="destructive" size="sm" className="flex items-center gap-2">
-                <LifeBuoy className="h-4 w-4" />
-                <span>Sign Out</span>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="flex items-center gap-2"
+                onClick={handleSignOut}
+              >
+                <LogOut className="h-4 w-4" />
+                <span>{isDemo ? 'Exit Demo Mode' : 'Sign Out'}</span>
               </Button>
             </div>
           </div>
@@ -97,7 +123,9 @@ export default function Profile() {
                 <div className="flex flex-col items-center text-center">
                   <Avatar className="h-16 w-16 border-2 border-primary/70 mb-3">
                     <AvatarImage src={userData.avatarUrl} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">AJ</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {getInitials(userData.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <CardTitle className="text-xl">{userData.name}</CardTitle>
                   <CardDescription className="text-sm">{userData.email}</CardDescription>
@@ -105,6 +133,11 @@ export default function Profile() {
                     <Badge className="bg-primary/90 hover:bg-primary text-primary-foreground text-xs font-medium">
                       {userData.plan} Plan
                     </Badge>
+                    {isDemo && (
+                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium">
+                        Demo Mode
+                      </Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       Joined {userData.joined}
                     </span>
@@ -214,14 +247,9 @@ export default function Profile() {
                           <Label htmlFor="current-password">Current Password</Label>
                           <Input id="current-password" type="password" />
                         </div>
-                        <div></div>
                         <div className="space-y-2">
                           <Label htmlFor="new-password">New Password</Label>
                           <Input id="new-password" type="password" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="confirm-password">Confirm New Password</Label>
-                          <Input id="confirm-password" type="password" />
                         </div>
                       </div>
                       <Button>Update Password</Button>
@@ -253,103 +281,13 @@ export default function Profile() {
               <TabsContent value="api-keys">
                 <Card>
                   <CardHeader>
-                    <CardTitle>API Keys</CardTitle>
+                    <CardTitle>Exchange API Keys</CardTitle>
                     <CardDescription>
-                      Manage your exchange API keys for automated trading
+                      Manage your exchange API keys for automated trading and arbitrage detection
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                      {userData.apiKeys.map((key) => {
-                        const exchangeInfo = getExchangeByName(key.exchange);
-                        return (
-                          <div key={key.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 rounded-lg bg-card border border-border/50 gap-3">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                {exchangeInfo?.logo && (
-                                  <div className="w-5 h-5 flex items-center justify-center overflow-hidden rounded-sm bg-card">
-                                    <img 
-                                      src={exchangeInfo.logo} 
-                                      alt={key.exchange} 
-                                      className="w-full h-full object-contain"
-                                      onError={(e) => {
-                                        // Fallback if image fails to load
-                                        (e.target as HTMLImageElement).style.display = 'none';
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                                <h4 className="font-medium">{key.exchange}</h4>
-                                <Badge variant="outline">{key.label}</Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">Last used: {key.lastUsed}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="sm">Edit</Button>
-                              <Button variant="ghost" size="sm" className="text-destructive">Delete</Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Add New API Key</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="exchange">Exchange</Label>
-                          <Select>
-                            <SelectTrigger id="exchange">
-                              <SelectValue placeholder="Select Exchange" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {exchangeNames.map((exchange) => {
-                                const exchangeInfo = getExchangeByName(exchange);
-                                return (
-                                  <SelectItem key={exchange} value={exchange}>
-                                    <div className="flex items-center gap-2">
-                                      {exchangeInfo?.logo && (
-                                        <div className="w-4 h-4 flex items-center justify-center overflow-hidden rounded-sm">
-                                          <img 
-                                            src={exchangeInfo.logo} 
-                                            alt={exchange} 
-                                            className="w-full h-full object-contain"
-                                            onError={(e) => {
-                                              // Fallback if image fails to load
-                                              (e.target as HTMLImageElement).style.display = 'none';
-                                            }}
-                                          />
-                                        </div>
-                                      )}
-                                      {exchange}
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="key-label">Label</Label>
-                          <Input id="key-label" placeholder="e.g. Trading Bot, Main Account" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="api-key">API Key</Label>
-                          <Input id="api-key" placeholder="Enter your API key" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="api-secret">API Secret</Label>
-                          <Input id="api-secret" type="password" placeholder="Enter your API secret" />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch id="read-only" />
-                        <Label htmlFor="read-only">Read-only access (recommended)</Label>
-                      </div>
-                      <Button>Add API Key</Button>
-                    </div>
+                    <ExchangeApiManager userId={userData.userId} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -400,7 +338,45 @@ export default function Profile() {
                     
                     <Separator />
                     
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Trading Preferences</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">Confirm Trades</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Show confirmation dialog before executing trades
+                            </p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h3 className="font-medium">Default Trading Amount</h3>
+                            <p className="text-sm text-muted-foreground">Pre-filled amount in trading forms</p>
+                          </div>
+                          <div className="w-full sm:w-[180px]">
+                            <Input value="1000" />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">Test Mode</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Simulate trades without using real funds
+                            </p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
                     <Button>Save Preferences</Button>
+                      <Button variant="outline">Reset to Defaults</Button>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -408,69 +384,118 @@ export default function Profile() {
               <TabsContent value="notifications">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Notifications</CardTitle>
+                    <CardTitle>Notification Settings</CardTitle>
                     <CardDescription>
-                      Recent alerts and important information
+                      Manage how and when you receive alerts and notifications
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="border rounded-lg divide-y">
-                      {/* Notification 1 */}
-                      <div className="p-4 hover:bg-accent/40 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="h-9 w-9 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center flex-shrink-0">
-                            <RefreshCw className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-col sm:flex-row justify-between items-start">
-                              <h4 className="font-medium text-sm">New Arbitrage Opportunity</h4>
-                              <span className="text-xs text-muted-foreground flex items-center mt-1 sm:mt-0 sm:ml-2">
-                                <Clock className="h-3 w-3 mr-1 inline-block" />
-                                Just now
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              BTC/USDT spread of 2.3% detected between Binance and Kraken
+                  <CardContent className="space-y-6">
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium">Notification Types</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Price Alerts</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Notify when coins reach target prices
                             </p>
                           </div>
+                          <Switch defaultChecked />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Arbitrage Opportunities</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Notify when profit opportunity is detected
+                            </p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Security Alerts</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Login attempts and security-related notifications
+                            </p>
+                          </div>
+                          <Switch defaultChecked />
+                            </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">News Alerts</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Major news related to your watchlist
+                            </p>
+                          </div>
+                          <Switch />
                         </div>
                       </div>
-                      
-                      {/* Notification 2 */}
-                      <div className="p-4 hover:bg-accent/40 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="h-9 w-9 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center flex-shrink-0">
-                            <User className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-col sm:flex-row justify-between items-start">
-                              <h4 className="font-medium text-sm">New Login Detected</h4>
-                              <span className="text-xs text-muted-foreground flex items-center mt-1 sm:mt-0 sm:ml-2">
-                                <Clock className="h-3 w-3 mr-1 inline-block" />
-                                2 hours ago
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              New login from Chicago, United States
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium">Delivery Methods</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Email Notifications</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Receive notifications via email
                             </p>
+                          </div>
+                          <Switch defaultChecked />
+                            </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Desktop Notifications</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Show notifications in browser or desktop app
+                            </p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium">Settings</h3>
+                      <div className="space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h4 className="font-medium">Min. Profit Threshold</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Only notify for arbitrage above this percent
+                            </p>
+                          </div>
+                          <div className="w-full sm:w-[180px]">
+                            <Input value="2.0" />
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h4 className="font-medium">Alert Frequency</h4>
+                      <p className="text-sm text-muted-foreground">
+                              How often to receive similar notifications
+                            </p>
+                          </div>
+                          <div className="w-full sm:w-[180px]">
+                            <Input value="Real-time" />
                           </div>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row justify-between items-center pt-2 gap-2">
-                      <p className="text-sm text-muted-foreground">
-                        Showing recent notifications
-                      </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => navigate('/notifications')}
-                        className="flex items-center gap-1 w-full sm:w-auto"
-                      >
-                        <Bell className="h-4 w-4" />
-                        View all notifications
-                      </Button>
+                    <div className="flex gap-3">
+                      <Button>Save Notification Settings</Button>
+                      <Button variant="outline">Reset</Button>
                     </div>
                   </CardContent>
                 </Card>

@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { ExchangeManager, PriceUpdateEvent } from '../adapters/exchange-manager';
+import { useAppSettings } from './app-settings-context';
+import { useNotifications } from './notifications-manager';
 
 // Types for our context
 export type Exchange = 
@@ -7,6 +10,7 @@ export type Exchange =
   | 'Bybit'
   | 'KuCoin'
   | 'Gate.io'
+  | 'Bitmart'
   | 'Bitfinex'
   | 'Gemini'
   | 'Coinbase'
@@ -55,6 +59,8 @@ export type ArbitrageOpportunity = {
     networkFees: number;
     otherFees: number;
   };
+  fromExchangePrice?: number;
+  toExchangePrice?: number;
 };
 
 export type NetworkInfo = {
@@ -79,6 +85,9 @@ export type TriangularOpportunity = {
   netProfit: number;
   networks?: NetworkInfo[];
   bestNetwork?: NetworkInfo;
+  firstPairPrice?: number;
+  secondPairPrice?: number;
+  thirdPairPrice?: number;
 };
 
 export type FuturesOpportunity = {
@@ -105,209 +114,27 @@ export type ExchangeVolume = {
   pairCount: number;
 };
 
-// Mock data for now
-const mockExchanges: Exchange[] = [
+// List of all supported exchanges
+const allExchanges: Exchange[] = [
   'Binance', 'Bitget', 'Bybit', 'KuCoin', 'Gate.io', 
   'Bitfinex', 'Gemini', 'Coinbase', 'Kraken', 'Poloniex', 
   'OKX', 'AscendEX', 'Bittrue', 'HTX', 'MEXC'
 ];
 
-const mockPriceData: PriceData[] = mockExchanges.map(exchange => ({
-  exchange,
-  pair: 'BTC/USDT',
-  price: 38000 + Math.random() * 2000,
-  volume24h: 1000000 + Math.random() * 9000000,
-  priceChange24h: Math.random() * 1000 - 500,
-  priceChangePercent24h: Math.random() * 10 - 5,
-  high24h: 40000 + Math.random() * 1000,
-  low24h: 37000 + Math.random() * 1000,
-  lastUpdated: new Date()
-}));
+// Common pairs to monitor for arbitrage
+const commonPairs = [
+  'BTC-USDT',
+  'ETH-USDT',
+  'BNB-USDT',
+  'XRP-USDT',
+  'SOL-USDT',
+  'ADA-USDT',
+  'DOGE-USDT',
+  'AVAX-USDT',
+  'DOT-USDT',
+  'SHIB-USDT'
+];
 
-// Generate mock arbitrage opportunities
-const mockArbitrageOpportunities: ArbitrageOpportunity[] = Array.from({ length: 15 }, (_, i) => {
-  const fromExchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
-  let toExchange;
-  do {
-    toExchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
-  } while (fromExchange === toExchange);
-  
-  const spreadPercent = (Math.random() * 5) + 0.5;
-  const volume = 500000 + Math.random() * 5000000;
-  const estimatedProfit = volume * (spreadPercent / 100);
-  
-  // Create mock network info
-  const networks = [
-    {
-      name: "Ethereum",
-      fee: 5 + Math.random() * 15,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 5 + Math.floor(Math.random() * 20)
-    },
-    {
-      name: "Binance Smart Chain",
-      fee: 0.5 + Math.random() * 2,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 5)
-    },
-    {
-      name: "Solana",
-      fee: 0.01 + Math.random() * 0.05,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 2)
-    }
-  ];
-  
-  // Choose best network (lowest fee in this mock example)
-  const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
-  
-  const exchangeFees = estimatedProfit * 0.1; // 10% exchange fees
-  const networkFees = bestNetwork.fee;
-  const otherFees = estimatedProfit * 0.05; // 5% slippage and other costs
-  const totalFees = exchangeFees + networkFees + otherFees;
-  
-  return {
-    id: `arb-${i}`,
-    fromExchange,
-    toExchange,
-    pair: 'BTC/USDT',
-    spreadAmount: 100 + Math.random() * 900,
-    spreadPercent,
-    volume24h: volume,
-    timestamp: new Date(),
-    estimatedProfit,
-    fees: totalFees,
-    netProfit: estimatedProfit - totalFees,
-    networks,
-    bestNetwork,
-    feeDetails: {
-      exchangeFees,
-      networkFees,
-      otherFees
-    }
-  };
-}).sort((a, b) => b.spreadPercent - a.spreadPercent);
-
-// Generate mock triangular opportunities
-const mockTriangularOpportunities: TriangularOpportunity[] = Array.from({ length: 10 }, (_, i) => {
-  const exchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
-  const profitPercent = (Math.random() * 3) + 0.3;
-  const estimatedProfit = 1000 + Math.random() * 9000;
-  const fees = estimatedProfit * 0.2; // 20% fees for 3 trades
-  
-  // Create mock network info
-  const networks = [
-    {
-      name: "Ethereum",
-      fee: 5 + Math.random() * 15,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 5 + Math.floor(Math.random() * 20)
-    },
-    {
-      name: "Binance Smart Chain",
-      fee: 0.5 + Math.random() * 2,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 5)
-    },
-    {
-      name: "Solana",
-      fee: 0.01 + Math.random() * 0.05,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 2)
-    }
-  ];
-  
-  // Choose best network (lowest fee in this mock example)
-  const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
-  
-  return {
-    id: `tri-${i}`,
-    exchange,
-    firstPair: 'BTC/USDT',
-    secondPair: 'ETH/BTC',
-    thirdPair: 'ETH/USDT',
-    profitPercent,
-    timestamp: new Date(),
-    path: 'USDT → BTC → ETH → USDT',
-    estimatedProfit,
-    fees,
-    netProfit: estimatedProfit - fees,
-    networks,
-    bestNetwork
-  };
-}).sort((a, b) => b.profitPercent - a.profitPercent);
-
-// Generate mock futures opportunities
-const mockFuturesOpportunities: FuturesOpportunity[] = Array.from({ length: 12 }, (_, i) => {
-  const exchange = mockExchanges[Math.floor(Math.random() * mockExchanges.length)];
-  const fundingRate = (Math.random() * 0.2) - 0.1; // Between -0.1% and 0.1%
-  const spotPrice = 38000 + Math.random() * 2000;
-  const futuresPrice = spotPrice * (1 + (Math.random() * 0.02 - 0.01)); // +/- 1%
-  const spreadPercent = ((futuresPrice - spotPrice) / spotPrice) * 100;
-  const estimatedProfit = Math.abs(spreadPercent) * 100 + Math.random() * 900;
-  const fees = estimatedProfit * 0.1; // 10% fees
-  
-  // Create mock network info
-  const networks = [
-    {
-      name: "Ethereum",
-      fee: 5 + Math.random() * 15,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 5 + Math.floor(Math.random() * 20)
-    },
-    {
-      name: "Binance Smart Chain",
-      fee: 0.5 + Math.random() * 2,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 5)
-    },
-    {
-      name: "Solana",
-      fee: 0.01 + Math.random() * 0.05,
-      speed: ["Fast", "Medium", "Slow"][Math.floor(Math.random() * 3)],
-      congestion: ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-      estimatedTimeMinutes: 1 + Math.floor(Math.random() * 2)
-    }
-  ];
-  
-  // Choose best network (lowest fee in this mock example)
-  const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
-  
-  return {
-    id: `fut-${i}`,
-    exchange,
-    pair: 'BTC/USDT',
-    fundingRate,
-    fundingInterval: '8h',
-    spotPrice,
-    futuresPrice,
-    spreadPercent,
-    timestamp: new Date(),
-    estimatedProfit,
-    fees,
-    netProfit: estimatedProfit - fees,
-    networks,
-    bestNetwork
-  };
-}).sort((a, b) => Math.abs(b.spreadPercent) - Math.abs(a.spreadPercent));
-
-// Generate mock exchange volumes
-const mockExchangeVolumes: ExchangeVolume[] = mockExchanges.map(exchange => ({
-  exchange,
-  volume24h: 10000000 + Math.random() * 90000000,
-  change24h: Math.random() * 20 - 10,
-  pairCount: 100 + Math.floor(Math.random() * 900)
-})).sort((a, b) => b.volume24h - a.volume24h);
-
-// Context type
 type CryptoContextType = {
   isLoading: boolean;
   exchanges: Exchange[];
@@ -319,126 +146,298 @@ type CryptoContextType = {
   selectedPair: string;
   setSelectedPair: (pair: string) => void;
   refreshData: () => void;
+  subscribeToSymbol: (symbol: string) => void;
+  unsubscribeFromSymbol: (symbol: string) => void;
+  lastRefreshTime: Date;
 };
 
-// Create the context
+// Create our context
 const CryptoContext = createContext<CryptoContextType | undefined>(undefined);
 
-// Context provider component
-export function CryptoProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [exchanges] = useState<Exchange[]>(mockExchanges);
-  const [priceData, setPriceData] = useState<PriceData[]>(mockPriceData);
-  const [arbitrageOpportunities, setArbitrageOpportunities] = useState<ArbitrageOpportunity[]>(mockArbitrageOpportunities);
-  const [triangularOpportunities, setTriangularOpportunities] = useState<TriangularOpportunity[]>(mockTriangularOpportunities);
-  const [futuresOpportunities, setFuturesOpportunities] = useState<FuturesOpportunity[]>(mockFuturesOpportunities);
-  const [exchangeVolumes, setExchangeVolumes] = useState<ExchangeVolume[]>(mockExchangeVolumes);
-  const [selectedPair, setSelectedPair] = useState<string>('BTC/USDT');
-
-  // Simulating WebSocket data updates
-  useEffect(() => {
-    const initialLoad = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      // Update price data
-      setPriceData(prev => 
-        prev.map(item => ({
-          ...item,
-          price: item.price * (1 + (Math.random() * 0.01 - 0.005)), // +/- 0.5%
-          lastUpdated: new Date()
-        }))
-      );
-
-      // Update arbitrage opportunities
-      setArbitrageOpportunities(prev => {
-        const updated = prev.map(opp => ({
-          ...opp,
-          spreadPercent: opp.spreadPercent * (1 + (Math.random() * 0.1 - 0.05)), // +/- 5%
-          timestamp: new Date()
-        }));
-        return updated.sort((a, b) => b.spreadPercent - a.spreadPercent);
-      });
-
-      // Update triangular opportunities
-      setTriangularOpportunities(prev => {
-        const updated = prev.map(opp => ({
-          ...opp,
-          profitPercent: opp.profitPercent * (1 + (Math.random() * 0.1 - 0.05)), // +/- 5%
-          timestamp: new Date()
-        }));
-        return updated.sort((a, b) => b.profitPercent - a.profitPercent);
-      });
-
-      // Update futures opportunities
-      setFuturesOpportunities(prev => {
-        const updated = prev.map(opp => ({
-          ...opp,
-          fundingRate: opp.fundingRate * (1 + (Math.random() * 0.2 - 0.1)), // +/- 10%
-          spotPrice: opp.spotPrice * (1 + (Math.random() * 0.01 - 0.005)), // +/- 0.5%
-          futuresPrice: opp.futuresPrice * (1 + (Math.random() * 0.01 - 0.005)), // +/- 0.5%
-          timestamp: new Date()
-        }));
-        return updated.sort((a, b) => Math.abs(b.spreadPercent) - Math.abs(a.spreadPercent));
-      });
-
-      // Update exchange volumes
-      setExchangeVolumes(prev => {
-        const updated = prev.map(vol => ({
-          ...vol,
-          volume24h: vol.volume24h * (1 + (Math.random() * 0.02 - 0.01)), // +/- 1%
-          change24h: vol.change24h + (Math.random() * 2 - 1) // +/- 1%
-        }));
-        return updated.sort((a, b) => b.volume24h - a.volume24h);
-      });
-    }, 2000); // Update every 2 seconds
-
-    return () => {
-      clearTimeout(initialLoad);
-      clearInterval(interval);
-    };
-  }, []);
-
-  // Manual refresh function
-  const refreshData = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setPriceData(mockPriceData.map(item => ({
-        ...item,
-        price: 38000 + Math.random() * 2000,
-        lastUpdated: new Date()
-      })));
-      setIsLoading(false);
-    }, 800);
+// Function to transform price update events to our PriceData format
+function transformPriceUpdateToPriceData(update: PriceUpdateEvent): PriceData {
+  // Calculate mid price between bid and ask
+  const price = (update.bid + update.ask) / 2;
+  
+  // Symbols are in format BTC-USDT, but we want BTC/USDT for UI
+  const pair = update.symbol.replace('-', '/');
+  
+  return {
+    exchange: update.exchange,
+    pair,
+    price,
+    volume24h: update.volume24h || 0,
+    // These fields will be populated when we have historical data
+    priceChange24h: 0,
+    priceChangePercent24h: 0,
+    high24h: price,
+    low24h: price,
+    lastUpdated: new Date(update.timestamp)
   };
+}
 
+// Detect arbitrage opportunities from price data
+function detectArbitrageOpportunities(priceData: PriceData[]): ArbitrageOpportunity[] {
+  const opportunities: ArbitrageOpportunity[] = [];
+  const symbols = [...new Set(priceData.map(data => data.pair))];
+  
+  for (const symbol of symbols) {
+    const symbolData = priceData.filter(data => data.pair === symbol);
+    
+    // Need at least 2 exchanges to compare
+    if (symbolData.length < 2) continue;
+    
+    // Compare each exchange with every other exchange
+    for (let i = 0; i < symbolData.length; i++) {
+      for (let j = i + 1; j < symbolData.length; j++) {
+        const fromData = symbolData[i];
+        const toData = symbolData[j];
+        
+        // Calculate spread
+        const spreadAmount = Math.abs(fromData.price - toData.price);
+        const spreadPercent = (spreadAmount / Math.min(fromData.price, toData.price)) * 100;
+        
+        // Only consider meaningful spreads (above 0.5%)
+        if (spreadPercent < 0.5) continue;
+        
+        // Determine which exchange has the lower price (buy from) and higher price (sell to)
+        const [buyData, sellData] = fromData.price < toData.price 
+          ? [fromData, toData] 
+          : [toData, fromData];
+          
+        // Calculate estimated profit (using the lower volume of the two exchanges)
+        const volume = Math.min(buyData.volume24h, sellData.volume24h) * 0.001; // 0.1% of volume
+        const estimatedProfit = volume * (spreadPercent / 100);
+        
+        // Estimate fees
+        const exchangeFees = estimatedProfit * 0.1; // 10% exchange fees
+        const networkFees = 5; // Fixed network fee in USD
+        const otherFees = estimatedProfit * 0.05; // 5% slippage and other costs
+        const totalFees = exchangeFees + networkFees + otherFees;
+        
+        // Create mock network info (would be replaced with real data)
+        const networks = [
+          {
+            name: "Ethereum",
+            fee: 5 + Math.random() * 15,
+            speed: "Medium",
+            congestion: "Medium",
+            estimatedTimeMinutes: 10
+          },
+          {
+            name: "Binance Smart Chain",
+            fee: 0.5 + Math.random() * 2,
+            speed: "Fast",
+            congestion: "Low",
+            estimatedTimeMinutes: 3
+          },
+          {
+            name: "Solana",
+            fee: 0.01 + Math.random() * 0.05,
+            speed: "Fast",
+            congestion: "Low",
+            estimatedTimeMinutes: 1
+          }
+        ];
+        
+        // Choose best network (lowest fee in this example)
+        const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
+        
+        opportunities.push({
+          id: `arb-${buyData.exchange}-${sellData.exchange}-${symbol}`,
+          fromExchange: buyData.exchange,
+          toExchange: sellData.exchange,
+          pair: symbol,
+          spreadAmount,
+          spreadPercent,
+          volume24h: volume,
+          timestamp: new Date(),
+          estimatedProfit,
+          fees: totalFees,
+          netProfit: estimatedProfit - totalFees,
+          networks,
+          bestNetwork,
+          feeDetails: {
+            exchangeFees,
+            networkFees,
+            otherFees
+          },
+          fromExchangePrice: buyData.price,
+          toExchangePrice: sellData.price
+        });
+      }
+    }
+  }
+  
+  // Sort by net profit
+  return opportunities.sort((a, b) => b.netProfit - a.netProfit);
+}
+
+// Provider component
+export function CryptoProvider({ children }: { children: ReactNode }) {
+  const { settings } = useAppSettings();
+  const { notifyArbitrageOpportunity, notifyPriceAlert } = useNotifications();
+  
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [exchangeManager] = useState<ExchangeManager>(() => new ExchangeManager());
+  const [exchanges] = useState<Exchange[]>(allExchanges);
+  const [priceData, setPriceData] = useState<PriceData[]>([]);
+  const [arbitrageOpportunities, setArbitrageOpportunities] = useState<ArbitrageOpportunity[]>([]);
+  const [triangularOpportunities, setTriangularOpportunities] = useState<TriangularOpportunity[]>([]);
+  const [futuresOpportunities, setFuturesOpportunities] = useState<FuturesOpportunity[]>([]);
+  const [exchangeVolumes, setExchangeVolumes] = useState<ExchangeVolume[]>([]);
+  const [selectedPair, setSelectedPair] = useState<string>(commonPairs[0]);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  
+  // Initialize exchange connections
+  useEffect(() => {
+    async function initializeExchanges() {
+      setIsLoading(true);
+      
+      try {
+        // Connect to all exchanges
+        await exchangeManager.connectAll();
+        
+        // Subscribe to price updates for common pairs
+        await exchangeManager.subscribeToSymbols(commonPairs);
+        
+        // Register price update handler
+        exchangeManager.onPriceUpdate(handlePriceUpdate);
+        
+        // Initial data load is complete
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to initialize exchanges:', error);
+        setIsLoading(false);
+      }
+    }
+    
+    initializeExchanges();
+    
+    // Cleanup on unmount
+    return () => {
+      exchangeManager.disconnectAll();
+    };
+  }, [exchangeManager]);
+  
+  // Handle price updates from exchanges
+  const handlePriceUpdate = useCallback((update: PriceUpdateEvent) => {
+    // Transform to our PriceData format
+    const newPriceData = transformPriceUpdateToPriceData(update);
+    
+    // Update price data state
+    setPriceData(current => {
+      // Replace existing data for this exchange/pair, or add new
+      const existingIndex = current.findIndex(
+        data => data.exchange === update.exchange && data.pair === newPriceData.pair
+      );
+      
+      // Check for significant price changes to trigger alerts
+      if (existingIndex >= 0) {
+        const existingData = current[existingIndex];
+        const priceChange = ((newPriceData.price - existingData.price) / existingData.price) * 100;
+        
+        // If price change exceeds 5%, send a notification
+        if (Math.abs(priceChange) >= 5) {
+          notifyPriceAlert(newPriceData.pair, newPriceData.price, priceChange);
+        }
+      }
+      
+      if (existingIndex >= 0) {
+        const updatedData = [...current];
+        updatedData[existingIndex] = newPriceData;
+        return updatedData;
+      } else {
+        return [...current, newPriceData];
+      }
+    });
+  }, [notifyPriceAlert]);
+  
+  // Update arbitrage opportunities when price data changes
+  useEffect(() => {
+    if (priceData.length >= 2) {
+      const opportunities = detectArbitrageOpportunities(priceData);
+      setArbitrageOpportunities(opportunities);
+      
+      // Notify about high-profit opportunities
+      const minProfitForNotification = settings.notifications.minProfitThreshold || 2.0;
+      opportunities
+        .filter(opp => opp.spreadPercent >= minProfitForNotification)
+        .slice(0, 3) // Limit to top 3 to avoid notification spam
+        .forEach(opp => {
+          notifyArbitrageOpportunity(opp);
+        });
+    }
+  }, [priceData, notifyArbitrageOpportunity, settings.notifications.minProfitThreshold]);
+  
+  // Auto-refresh based on user settings
+  useEffect(() => {
+    // Only set up auto-refresh if interval is greater than 0
+    if (settings.refreshInterval > 0) {
+      const intervalId = setInterval(() => {
+        refreshData();
+      }, settings.refreshInterval * 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [settings.refreshInterval]);
+  
+  // Function to subscribe to a symbol
+  const subscribeToSymbol = async (symbol: string) => {
+    try {
+      await exchangeManager.subscribeToSymbol(symbol);
+    } catch (error) {
+      console.error(`Failed to subscribe to ${symbol}:`, error);
+    }
+  };
+  
+  // Function to unsubscribe from a symbol
+  const unsubscribeFromSymbol = async (symbol: string) => {
+    try {
+      await exchangeManager.unsubscribeFromSymbol(symbol);
+    } catch (error) {
+      console.error(`Failed to unsubscribe from ${symbol}:`, error);
+    }
+  };
+  
+  // Function to manually refresh all data
+  const refreshData = useCallback(() => {
+    // Force data refresh
+    exchangeManager.refreshAllPrices();
+    setLastRefreshTime(new Date());
+  }, [exchangeManager]);
+  
+  // Our context value
+  const contextValue: CryptoContextType = {
+    isLoading,
+    exchanges,
+    priceData,
+    arbitrageOpportunities,
+    triangularOpportunities,
+    futuresOpportunities,
+    exchangeVolumes,
+    selectedPair,
+    setSelectedPair,
+    refreshData,
+    subscribeToSymbol,
+    unsubscribeFromSymbol,
+    lastRefreshTime
+  };
+  
   return (
-    <CryptoContext.Provider
-      value={{
-        isLoading,
-        exchanges,
-        priceData,
-        arbitrageOpportunities,
-        triangularOpportunities,
-        futuresOpportunities,
-        exchangeVolumes,
-        selectedPair,
-        setSelectedPair,
-        refreshData
-      }}
-    >
+    <CryptoContext.Provider value={contextValue}>
       {children}
     </CryptoContext.Provider>
   );
 }
 
-// Hook for using the crypto context
+// Hook to access our context
 export function useCrypto() {
   const context = useContext(CryptoContext);
+  
   if (context === undefined) {
     throw new Error('useCrypto must be used within a CryptoProvider');
   }
+  
   return context;
 }
