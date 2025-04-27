@@ -465,30 +465,51 @@ export class ProfileService {
       throw new Error('User not authenticated');
     }
 
-    // Find the key
+    // Find the key in the user profile
     const key = this.userProfile.apiKeys.find(k => k.id === keyId);
     if (!key) {
       throw new Error(`API key with ID ${keyId} not found`);
     }
 
     try {
-      // Decrypt credentials
-      const apiKey = await this.encryptionService.decrypt(key.encryptedApiKey);
-      const secret = await this.encryptionService.decrypt(key.encryptedSecret);
+      // Use the SupabaseApiKeyService to get decrypted credentials
+      // This calls the server-side decrypt function
+      const credentials = await this.supabaseApiKeyService.getDecryptedCredentials(
+        this.userProfile.userId, 
+        keyId
+      );
       
-      let passphrase: string | undefined;
-      if (key.encryptedPassphrase) {
-        passphrase = await this.encryptionService.decrypt(key.encryptedPassphrase);
-      }
+      // Update the last used timestamp
+      this.markApiKeyAsUsed(keyId);
 
-      return {
-        apiKey,
-        secret,
-        passphrase
-      };
+      return credentials;
     } catch (error) {
       console.error('Error decrypting credentials:', error);
       throw new Error(`Failed to decrypt credentials: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Mark an API key as used (update last_used timestamp)
+   * @param keyId The API key ID
+   */
+  private async markApiKeyAsUsed(keyId: string): Promise<void> {
+    if (!this.isAuthenticated || !this.userProfile) {
+      return;
+    }
+
+    try {
+      // Update the last used timestamp in the database
+      await this.supabaseApiKeyService.testApiKey(this.userProfile.userId, keyId);
+
+      // Also update in our local cache
+      const keyIndex = this.userProfile.apiKeys.findIndex(k => k.id === keyId);
+      if (keyIndex >= 0) {
+        this.userProfile.apiKeys[keyIndex].lastUsed = new Date();
+      }
+    } catch (error) {
+      // Log but don't throw - this is non-critical
+      console.warn('Failed to update last used timestamp:', error);
     }
   }
 

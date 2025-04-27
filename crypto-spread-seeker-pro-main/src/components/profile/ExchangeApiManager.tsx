@@ -64,6 +64,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { validateApiKey, requiresPassphrase as checkRequiresPassphrase } from '../../utils/api-key-validator';
 
 // All supported exchanges
 const supportedExchanges = [
@@ -198,7 +199,20 @@ export function ExchangeApiManager({ userId }: { userId: string }) {
           throw error;
         }
         
-        setApiKeys(data || []);
+        // Transform to ApiKey objects
+        const transformedKeys = data.map(item => ({
+          id: item.id,
+          exchange: item.exchange,
+          label: item.label,
+          api_key: maskApiKey(item.encrypted_api_key || 'API_KEY'), // Display masked version
+          permissions: item.permissions || { read: true, trade: false, withdraw: false },
+          last_used: item.last_used ? new Date(item.last_used).toLocaleDateString() : 'Never',
+          status: item.status || 'active',
+          test_status: item.test_result_status || 'pending',
+          test_message: item.test_result_message
+        }));
+        
+        setApiKeys(transformedKeys);
       } catch (supabaseError) {
         console.error('Error loading API keys from Supabase:', supabaseError);
         
@@ -252,6 +266,29 @@ export function ExchangeApiManager({ userId }: { userId: string }) {
         });
       }
       
+      // Validate the API key before saving
+      const validationResult = await validateApiKey(
+        data.exchangeId as Exchange,
+        data.apiKey,
+        data.secret,
+        data.passphrase
+      );
+      
+      if (!validationResult.valid) {
+        toast({
+          title: 'Invalid API Key',
+          description: validationResult.message,
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // If validation passed, update the permissions based on what we detected
+      // This gives more accurate permissions than what the user might have selected
+      form.setValue('permissions', validationResult.permissions);
+      data.permissions = validationResult.permissions;
+      
       // Always use demo mode for local development
       // This ensures the app works even without a configured Supabase backend
       if (userId === 'demo-user' || window.location.hostname === 'localhost') {
@@ -281,24 +318,38 @@ export function ExchangeApiManager({ userId }: { userId: string }) {
       
       // For real users, save to Supabase
       try {
-        // Encrypt sensitive data on server-side
+        console.log('Saving API key to Supabase for user:', userId);
+        console.log('API key data:', {
+          exchange: data.exchangeId,
+          label: data.label,
+          // Don't log the actual API key for security
+          apiKeyLength: data.apiKey.length,
+          hasSecret: !!data.secret,
+          hasPassphrase: !!data.passphrase
+        });
+        
+        // Store the API key in Supabase
         const { data: insertedData, error } = await supabase
           .from('api_keys')
           .insert({
             user_id: userId,
             exchange: data.exchangeId,
             label: data.label,
-            api_key: data.apiKey,
-            secret: data.secret, // This will be encrypted by Supabase RLS policy
-            passphrase: data.passphrase || null,
+            encrypted_api_key: data.apiKey, // Will be encrypted by Supabase trigger
+            encrypted_secret: data.secret, // Will be encrypted by Supabase trigger
+            encrypted_passphrase: data.passphrase || null,
             permissions: data.permissions,
-            status: 'active'
+            status: 'active',
+            test_result_status: 'pending'
           })
           .select();
         
         if (error) {
+          console.error('Error saving API key to Supabase:', error);
           throw error;
         }
+        
+        console.log('API key saved successfully to Supabase:', insertedData);
         
         toast({
           title: 'API Key Saved',
@@ -545,7 +596,7 @@ export function ExchangeApiManager({ userId }: { userId: string }) {
   };
 
   const requiresPassphrase = (exchange: string): boolean => {
-    return ['Coinbase', 'KuCoin', 'OKX'].includes(exchange);
+    return checkRequiresPassphrase(exchange as Exchange);
   };
 
   return (

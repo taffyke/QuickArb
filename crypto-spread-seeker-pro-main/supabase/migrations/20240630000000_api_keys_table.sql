@@ -1,14 +1,16 @@
 -- Create API keys table
 CREATE TABLE api_keys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   exchange TEXT NOT NULL,
   label TEXT NOT NULL,
-  api_key TEXT NOT NULL,
-  secret TEXT NOT NULL,
-  passphrase TEXT,
+  encrypted_api_key TEXT NOT NULL,
+  encrypted_secret TEXT NOT NULL,
+  encrypted_passphrase TEXT,
   permissions JSONB DEFAULT '{"read": true, "trade": false, "withdraw": false}'::jsonb,
   status TEXT DEFAULT 'pending',
+  test_result_status TEXT DEFAULT 'pending',
+  test_result_message TEXT,
   last_used TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -55,22 +57,39 @@ BEFORE UPDATE ON api_keys
 FOR EACH ROW
 EXECUTE FUNCTION update_timestamp();
 
--- Create function for PGCrypto encryption 
-CREATE OR REPLACE FUNCTION encrypt_api_secret() 
+-- Create function for server-side encryption
+CREATE OR REPLACE FUNCTION encrypt_api_keys() 
 RETURNS TRIGGER AS $$
+DECLARE
+  encryption_key TEXT;
 BEGIN
-  -- Only encrypt if not already encrypted
-  IF (NEW.secret IS NOT NULL) THEN
-    NEW.secret = pgp_sym_encrypt(
-      NEW.secret,
-      current_setting('app.settings.encryption_key')
+  -- Get the encryption key from app settings
+  encryption_key := current_setting('app.settings.encryption_key', true);
+  
+  -- Fall back to a default key if not set (not recommended for production)
+  IF encryption_key IS NULL THEN
+    encryption_key := 'default-encryption-key-for-development-only';
+  END IF;
+
+  -- Encrypt the API keys before storing
+  IF NEW.encrypted_api_key IS NOT NULL THEN
+    NEW.encrypted_api_key := pgp_sym_encrypt(
+      NEW.encrypted_api_key,
+      encryption_key
     );
   END IF;
   
-  IF (NEW.passphrase IS NOT NULL) THEN
-    NEW.passphrase = pgp_sym_encrypt(
-      NEW.passphrase,
-      current_setting('app.settings.encryption_key')
+  IF NEW.encrypted_secret IS NOT NULL THEN
+    NEW.encrypted_secret := pgp_sym_encrypt(
+      NEW.encrypted_secret,
+      encryption_key
+    );
+  END IF;
+  
+  IF NEW.encrypted_passphrase IS NOT NULL THEN
+    NEW.encrypted_passphrase := pgp_sym_encrypt(
+      NEW.encrypted_passphrase,
+      encryption_key
     );
   END IF;
   
@@ -79,10 +98,56 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to automatically encrypt secrets before insert
-CREATE TRIGGER encrypt_api_secrets_trigger
-BEFORE INSERT ON api_keys
+CREATE TRIGGER encrypt_api_keys_trigger
+BEFORE INSERT OR UPDATE ON api_keys
 FOR EACH ROW
-EXECUTE FUNCTION encrypt_api_secret();
+EXECUTE FUNCTION encrypt_api_keys();
+
+-- Create function for decryption (to be used via RPC only by authorized users)
+CREATE OR REPLACE FUNCTION decrypt_api_key(key_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  encryption_key TEXT;
+  api_key_record RECORD;
+  decrypted_data JSON;
+BEGIN
+  -- Check if user is authorized (owns this key)
+  PERFORM 1 FROM api_keys 
+  WHERE id = key_id AND user_id = auth.uid();
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Unauthorized access or key not found';
+  END IF;
+  
+  -- Get the encryption key
+  encryption_key := current_setting('app.settings.encryption_key', true);
+  
+  -- Fall back to a default key if not set (not recommended for production)
+  IF encryption_key IS NULL THEN
+    encryption_key := 'default-encryption-key-for-development-only';
+  END IF;
+  
+  -- Get the encrypted data
+  SELECT * INTO api_key_record FROM api_keys WHERE id = key_id;
+  
+  -- Decrypt and return as JSON
+  decrypted_data := json_build_object(
+    'api_key', pgp_sym_decrypt(api_key_record.encrypted_api_key::bytea, encryption_key),
+    'secret', pgp_sym_decrypt(api_key_record.encrypted_secret::bytea, encryption_key),
+    'passphrase', 
+      CASE WHEN api_key_record.encrypted_passphrase IS NOT NULL THEN
+        pgp_sym_decrypt(api_key_record.encrypted_passphrase::bytea, encryption_key)
+      ELSE
+        NULL
+      END
+  );
+  
+  -- Update last_used timestamp
+  UPDATE api_keys SET last_used = now() WHERE id = key_id;
+  
+  RETURN decrypted_data;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Create an index on user_id for faster lookups
 CREATE INDEX api_keys_user_id_idx ON api_keys(user_id);
@@ -92,4 +157,7 @@ CREATE INDEX api_keys_exchange_idx ON api_keys(exchange);
 
 -- Grant usage to authenticated users
 GRANT SELECT, INSERT, UPDATE, DELETE ON api_keys TO authenticated;
-GRANT USAGE ON SEQUENCE api_keys_id_seq TO authenticated; 
+GRANT USAGE ON SEQUENCE api_keys_id_seq TO authenticated;
+
+-- Grant execute on the decrypt function to authenticated users
+GRANT EXECUTE ON FUNCTION decrypt_api_key(UUID) TO authenticated; 

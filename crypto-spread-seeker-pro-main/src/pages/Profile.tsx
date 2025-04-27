@@ -153,32 +153,14 @@ export default function Profile() {
       
           {/* Tabs Section */}
           <div className="flex-1">
-            <Tabs defaultValue="profile" className="w-full">
-              <TabsList className="flex w-full h-auto mb-4 bg-muted/50 p-1 overflow-x-auto">
-                <TabsTrigger value="profile" className="flex-1">
-                  <User className="h-4 w-4 mr-2" />
-                  <span>Personal Info</span>
-                </TabsTrigger>
-                <TabsTrigger value="security" className="flex-1">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span>Security</span>
-                </TabsTrigger>
-                <TabsTrigger value="api-keys" className="flex-1">
-                  <Key className="h-4 w-4 mr-2" />
-                  <span>API Keys</span>
-                </TabsTrigger>
-                <TabsTrigger value="preferences" className="flex-1">
-                  <UserCog className="h-4 w-4 mr-2" />
-                  <span>Preferences</span>
-                </TabsTrigger>
-                <TabsTrigger value="notifications" className="flex-1">
-                  <Bell className="h-4 w-4 mr-2" />
-                  <span>Notifications</span>
-                </TabsTrigger>
+            <Tabs defaultValue="account">
+              <TabsList className="grid grid-cols-3 mb-8">
+                <TabsTrigger value="account">Account</TabsTrigger>
+                <TabsTrigger value="security">Security</TabsTrigger>
+                <TabsTrigger value="exchanges">Exchanges</TabsTrigger>
               </TabsList>
               
-              {/* Tab Content */}
-              <TabsContent value="profile">
+              <TabsContent value="account">
                 <Card>
                   <CardHeader>
                     <CardTitle>Personal Information</CardTitle>
@@ -278,7 +260,7 @@ export default function Profile() {
                 </Card>
               </TabsContent>
               
-              <TabsContent value="api-keys">
+              <TabsContent value="exchanges">
                 <Card>
                   <CardHeader>
                     <CardTitle>Exchange API Keys</CardTitle>
@@ -288,215 +270,6 @@ export default function Profile() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <ExchangeApiManager userId={userData.userId} />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="preferences">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>User Preferences</CardTitle>
-                    <CardDescription>
-                      Customize your trading and application experience
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-medium mb-3">Display Preferences</h3>
-                      <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h3 className="font-medium">Default Currency</h3>
-                            <p className="text-sm text-muted-foreground">Set your preferred currency</p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="USD" />
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h3 className="font-medium">Date Format</h3>
-                            <p className="text-sm text-muted-foreground">Choose how dates are displayed</p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="MM/DD/YYYY" />
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h3 className="font-medium">Default View</h3>
-                            <p className="text-sm text-muted-foreground">Set your default landing page</p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="Dashboard" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-3">Trading Preferences</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">Confirm Trades</h3>
-                            <p className="text-sm text-muted-foreground">
-                              Show confirmation dialog before executing trades
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h3 className="font-medium">Default Trading Amount</h3>
-                            <p className="text-sm text-muted-foreground">Pre-filled amount in trading forms</p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="1000" />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">Test Mode</h3>
-                            <p className="text-sm text-muted-foreground">
-                              Simulate trades without using real funds
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                    <Button>Save Preferences</Button>
-                      <Button variant="outline">Reset to Defaults</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="notifications">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Notification Settings</CardTitle>
-                    <CardDescription>
-                      Manage how and when you receive alerts and notifications
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium">Notification Types</h3>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Price Alerts</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Notify when coins reach target prices
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Arbitrage Opportunities</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Notify when profit opportunity is detected
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Security Alerts</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Login attempts and security-related notifications
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                            </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">News Alerts</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Major news related to your watchlist
-                            </p>
-                          </div>
-                          <Switch />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium">Delivery Methods</h3>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Email Notifications</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Receive notifications via email
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                            </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Desktop Notifications</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Show notifications in browser or desktop app
-                            </p>
-                          </div>
-                          <Switch defaultChecked />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium">Settings</h3>
-                      <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h4 className="font-medium">Min. Profit Threshold</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Only notify for arbitrage above this percent
-                            </p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="2.0" />
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <h4 className="font-medium">Alert Frequency</h4>
-                      <p className="text-sm text-muted-foreground">
-                              How often to receive similar notifications
-                            </p>
-                          </div>
-                          <div className="w-full sm:w-[180px]">
-                            <Input value="Real-time" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      <Button>Save Notification Settings</Button>
-                      <Button variant="outline">Reset</Button>
-                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

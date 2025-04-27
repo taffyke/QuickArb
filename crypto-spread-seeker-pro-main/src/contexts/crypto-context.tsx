@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { ExchangeManager, PriceUpdateEvent } from '../adapters/exchange-manager';
 import { useAppSettings } from './app-settings-context';
 import { useNotifications } from './notifications-manager';
+import { useSupabase } from '../contexts/supabase-context';
+import { ProfileService } from '../services/ProfileService';
 
 // Types for our context
 export type Exchange = 
@@ -277,9 +279,12 @@ function detectArbitrageOpportunities(priceData: PriceData[]): ArbitrageOpportun
 export function CryptoProvider({ children }: { children: ReactNode }) {
   const { settings } = useAppSettings();
   const { notifyArbitrageOpportunity, notifyPriceAlert } = useNotifications();
+  const { user } = useSupabase();
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [exchangeManager] = useState<ExchangeManager>(() => new ExchangeManager());
+  const [exchangeManager] = useState<ExchangeManager>(() => new ExchangeManager({
+    userId: user?.id
+  }));
   const [exchanges] = useState<Exchange[]>(allExchanges);
   const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [arbitrageOpportunities, setArbitrageOpportunities] = useState<ArbitrageOpportunity[]>([]);
@@ -288,6 +293,55 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   const [exchangeVolumes, setExchangeVolumes] = useState<ExchangeVolume[]>([]);
   const [selectedPair, setSelectedPair] = useState<string>(commonPairs[0]);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [apiKeysInitialized, setApiKeysInitialized] = useState<boolean>(false);
+  
+  // Update user ID when user changes
+  useEffect(() => {
+    if (user?.id) {
+      // Make sure the exchangeManager has the latest user ID
+      exchangeManager.setUserId(user.id);
+      
+      // Initialize API keys
+      initializeApiKeys();
+    }
+  }, [user?.id, exchangeManager]);
+  
+  // Load and set API keys
+  const initializeApiKeys = async () => {
+    if (!user?.id || apiKeysInitialized) return;
+    
+    try {
+      console.log('[CryptoProvider] Starting API key initialization for user:', user.id);
+      
+      // Get the profile service
+      const profileService = ProfileService.getInstance();
+      
+      // Get the user profile which will load API keys
+      console.log('[CryptoProvider] Fetching user profile...');
+      const profile = await profileService.getUserProfile();
+      console.log('[CryptoProvider] User profile loaded, API keys found:', profile?.apiKeys?.length || 0);
+      
+      if (profile?.apiKeys && profile.apiKeys.length > 0) {
+        // Set API keys for each exchange
+        for (const apiKey of profile.apiKeys) {
+          try {
+            console.log(`[CryptoProvider] Setting API key for exchange: ${apiKey.exchangeId}`);
+            exchangeManager.setApiKey(apiKey.exchangeId, apiKey.id);
+          } catch (error) {
+            console.error(`Failed to set API key for ${apiKey.exchangeId}:`, error);
+          }
+        }
+        
+        console.log(`[CryptoProvider] Initialized ${profile.apiKeys.length} API keys`);
+      } else {
+        console.log('[CryptoProvider] No API keys found for user');
+      }
+      
+      setApiKeysInitialized(true);
+    } catch (error) {
+      console.error('[CryptoProvider] Failed to initialize API keys:', error);
+    }
+  };
   
   // Initialize exchange connections
   useEffect(() => {

@@ -25,7 +25,7 @@ export const SUPABASE_URL = getEnv('SUPABASE_URL', 'https://sqzbftpiqbqxurwdjqsw
 export const SUPABASE_ANON_KEY = getEnv('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxemJmdHBpcWJxeHVyd2RqcXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTY0ODMxNDYsImV4cCI6MjAzMjA1OTE0Nn0.Nkno0TQHbSRfgvHEr1L-0vdIL_s2W2Hv2Z7Ny9Bxzns');
 
 // Encryption settings
-export const ENCRYPTION_KEY = getEnv('ENCRYPTION_KEY', 'fallback-dev-key-not-for-production');
+export const ENCRYPTION_KEY = getEnv('ENCRYPTION_KEY', 'Ke82HfTw9P3xLqDs5m7GbC1j4r6n0vVy');
 
 // Application settings
 export const APP_URL = getEnv('APP_URL', 'http://localhost:3000');

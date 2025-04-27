@@ -39,6 +39,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     // Initialize session
     const initSession = async () => {
       try {
+        console.log('[SupabaseContext] Initializing auth session...');
+        
         if (ENABLE_MOCK_AUTH) {
           // Use mock user and session for development
           console.log('[DEV] Using mock authentication');
@@ -56,13 +58,28 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           // Real authentication
+          console.log('[SupabaseContext] Getting current session...');
           const currentSession = await getSession();
+          console.log('[SupabaseContext] Session found:', !!currentSession);
+          
+          if (currentSession?.user) {
+            console.log('[SupabaseContext] User is authenticated:', currentSession.user.id);
+          } else {
+            console.log('[SupabaseContext] No authenticated user found');
+          }
+          
           setSession(currentSession);
           setUser(currentSession?.user || null);
 
           // Initialize user profile if logged in
           if (currentSession?.user) {
-            await profileService.initializeUserProfile(currentSession.user.id);
+            console.log('[SupabaseContext] Initializing user profile...');
+            try {
+              await profileService.initializeUserProfile(currentSession.user.id);
+              console.log('[SupabaseContext] User profile initialized successfully');
+            } catch (profileError) {
+              console.error('[SupabaseContext] Error initializing profile:', profileError);
+            }
           }
         }
       } catch (error) {

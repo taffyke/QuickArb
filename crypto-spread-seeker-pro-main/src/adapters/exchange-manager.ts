@@ -42,6 +42,7 @@ export interface ExchangeManagerOptions {
   autoReconnect?: boolean;
   logErrors?: boolean;
   useMockData?: boolean; // Flag to use mock data instead of real data
+  userId?: string; // For fetching API keys from Supabase
 }
 
 /**
@@ -51,7 +52,8 @@ const DEFAULT_OPTIONS: ExchangeManagerOptions = {
   maxUpdatesPerSecond: 10,
   autoReconnect: true,
   logErrors: true,
-  useMockData: false // By default, use real data
+  useMockData: false, // Always use real data
+  userId: '' // Default userId
 };
 
 /**
@@ -91,17 +93,12 @@ export class ExchangeManager {
       'Kraken'
     ];
     
-    // Register adapters for each exchange based on configuration
+    // Always use real CCXT adapter for live data, regardless of useMockData setting
     for (const exchange of exchanges) {
-      if (this.options.useMockData) {
-        // Use mock adapter if mock data is requested
-        console.log(`[ExchangeManager] Using mock data for ${exchange}`);
-        this.registerAdapter(exchange, new MockAdapter(exchange));
-      } else {
-        // Use real CCXT adapter for live data
-        console.log(`[ExchangeManager] Using real data from CCXT for ${exchange}`);
-        this.registerAdapter(exchange, new RealCCXTAdapter(exchange));
-      }
+      console.log(`[ExchangeManager] Using real data from CCXT for ${exchange}`);
+      this.registerAdapter(exchange, new RealCCXTAdapter(exchange, {
+        userId: this.options.userId // Pass the user ID for API key retrieval
+      }));
     }
   }
   
@@ -493,5 +490,28 @@ export class ExchangeManager {
     if (subscribedSymbols.size > 0) {
       await this.subscribeToSymbols(Array.from(subscribedSymbols));
     }
+  }
+
+  /**
+   * Set API key for a specific exchange
+   * @param exchange Exchange to set API key for
+   * @param keyId API key ID from Supabase
+   */
+  public setApiKey(exchange: Exchange, keyId: string): void {
+    const adapter = this.adapters.get(exchange);
+    if (adapter && adapter instanceof RealCCXTAdapter) {
+      // Update the adapter configuration with the key ID
+      (adapter as RealCCXTAdapter).updateApiKey(keyId);
+      console.log(`[ExchangeManager] Updated API key for ${exchange}`);
+    }
+  }
+
+  /**
+   * Set the user ID for fetching API keys
+   * @param userId User ID
+   */
+  public setUserId(userId: string): void {
+    this.options.userId = userId;
+    console.log(`[ExchangeManager] User ID updated: ${userId}`);
   }
 } 

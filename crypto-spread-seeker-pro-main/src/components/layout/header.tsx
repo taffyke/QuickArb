@@ -2,7 +2,6 @@ import { Bell, Search, User, Command, ArrowRight, Home, GitCompareArrows, Bot, L
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
-import { DataModeSwitch } from "@/components/DataModeSwitch";
 import { UserMenu } from "@/components/auth/UserMenu";
 
 import { Button } from "@/components/ui/button";
@@ -266,7 +265,6 @@ export function Header({ sidebarToggle }: HeaderProps) {
       </CommandDialog>
 
       <div className="flex items-center gap-2">
-        <DataModeSwitch />
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

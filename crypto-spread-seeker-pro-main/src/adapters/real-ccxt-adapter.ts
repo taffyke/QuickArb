@@ -1,5 +1,6 @@
 import { Exchange } from '../contexts/crypto-context';
 import { ExchangeAdapter, ExchangePriceData, ExchangeAdapterConfig, ExchangeErrorType, ExchangeError } from './types';
+import { ProfileService } from '../services/ProfileService';
 
 // We'll dynamically import CCXT from the CDN rather than from node_modules
 // This ensures we get the browser-compatible version without Node.js dependencies
@@ -11,8 +12,11 @@ let ccxt: any = null;
 export interface RealCCXTAdapterConfig extends ExchangeAdapterConfig {
   exchangeId: string;
   throttleMs?: number;
-  apiKey?: string;
-  apiSecret?: string;
+  userId?: string; // For fetching API keys from Supabase
+  keyId?: string;   // Specific API key ID to use
+  apiKey?: string;  // Fallback direct API key
+  apiSecret?: string; // Fallback direct secret
+  apiPassphrase?: string; // Fallback direct passphrase
 }
 
 /**
@@ -28,9 +32,11 @@ export class RealCCXTAdapter implements ExchangeAdapter {
   private connected: boolean = false;
   private exchangeName: Exchange;
   private cachedSupportedSymbols: string[] | null = null;
+  private profileService: ProfileService;
   
   constructor(exchangeName: Exchange, config: Partial<RealCCXTAdapterConfig> = {}) {
     this.exchangeName = exchangeName;
+    this.profileService = ProfileService.getInstance();
     
     // Default configuration
     this.config = {
@@ -123,10 +129,30 @@ export class RealCCXTAdapter implements ExchangeAdapter {
         enableRateLimit: true,
       };
       
-      // Add API keys if provided
-      if (this.config.apiKey && this.config.apiSecret) {
-        options.apiKey = this.config.apiKey;
-        options.secret = this.config.apiSecret;
+      // Try to use API key from Supabase if user ID and key ID are provided
+      if (this.config.userId && this.config.keyId) {
+        try {
+          // Get the API keys from Supabase through the profile service
+          const credentials = await this.profileService.getDecryptedCredentials(this.config.keyId);
+          
+          // Set the credentials
+          options.apiKey = credentials.apiKey;
+          options.secret = credentials.secret;
+          
+          // Add passphrase for exchanges that require it
+          if (credentials.passphrase) {
+            options.password = credentials.passphrase;
+          }
+          
+          console.log(`[RealCCXTAdapter] Successfully loaded API key for ${this.exchangeName}`);
+        } catch (error) {
+          console.warn(`[RealCCXTAdapter] Failed to load API key from Supabase: ${error}`);
+          // Fall back to config keys if provided
+          this.setFallbackCredentials(options);
+        }
+      } else {
+        // Use direct credentials from config if provided
+        this.setFallbackCredentials(options);
       }
       
       // Create exchange instance
@@ -134,6 +160,26 @@ export class RealCCXTAdapter implements ExchangeAdapter {
     } catch (error) {
       console.error('Error creating exchange:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Set fallback credentials from config
+   */
+  private setFallbackCredentials(options: any): void {
+    // Add API keys if provided in config
+    if (this.config.apiKey && this.config.apiSecret) {
+      options.apiKey = this.config.apiKey;
+      options.secret = this.config.apiSecret;
+      
+      // Add passphrase for exchanges that require it
+      if (this.config.apiPassphrase) {
+        options.password = this.config.apiPassphrase;
+      }
+      
+      console.log(`[RealCCXTAdapter] Using API key from config for ${this.exchangeName}`);
+    } else {
+      console.log(`[RealCCXTAdapter] No API key available for ${this.exchangeName}, using public endpoints`);
     }
   }
   
@@ -422,6 +468,37 @@ export class RealCCXTAdapter implements ExchangeAdapter {
         error
       );
       throw ccxtError;
+    }
+  }
+  
+  /**
+   * Update the API key to use
+   * @param keyId API key ID from Supabase
+   */
+  public async updateApiKey(keyId: string): Promise<void> {
+    // Store the key ID in config
+    this.config.keyId = keyId;
+    
+    // If already connected, reconnect to use the new key
+    if (this.connected) {
+      try {
+        // Disconnect first
+        await this.disconnect();
+        
+        // Reconnect with new key
+        await this.connect();
+        
+        // Resubscribe to all symbols
+        const symbols = Array.from(this.subscribedSymbols);
+        for (const symbol of symbols) {
+          await this.subscribeToSymbol(symbol);
+        }
+        
+        console.log(`[RealCCXTAdapter] Reconnected to ${this.exchangeName} with new API key`);
+      } catch (error) {
+        console.error(`[RealCCXTAdapter] Failed to reconnect with new API key:`, error);
+        throw error;
+      }
     }
   }
 } 

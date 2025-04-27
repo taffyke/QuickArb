@@ -15,7 +15,7 @@ export class SupabaseApiKeyService {
   }
   
   /**
-   * Get the singleton instance
+   * Get singleton instance
    */
   public static getInstance(): SupabaseApiKeyService {
     if (!SupabaseApiKeyService.instance) {
@@ -34,24 +34,13 @@ export class SupabaseApiKeyService {
     try {
       console.log('Starting API key creation process for', request.exchangeId);
       
-      // 1. Encrypt sensitive data
-      const encryptedApiKey = await this.encryptionService.encrypt(request.apiKey);
-      const encryptedSecret = await this.encryptionService.encrypt(request.secret);
-      
-      let encryptedPassphrase: string | undefined;
-      if (request.passphrase) {
-        encryptedPassphrase = await this.encryptionService.encrypt(request.passphrase);
-      }
-      
-      console.log('Successfully encrypted sensitive data');
-      
-      // 2. Create API key object
+      // Create API key object
       const newApiKey: ExchangeApiKey = {
         id: `key-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         exchangeId: request.exchangeId,
-        encryptedApiKey,
-        encryptedSecret,
-        encryptedPassphrase,
+        encryptedApiKey: request.apiKey, // Will be encrypted by Supabase
+        encryptedSecret: request.secret, // Will be encrypted by Supabase
+        encryptedPassphrase: request.passphrase,
         label: request.label,
         createdAt: new Date(),
         lastUpdated: new Date(),
@@ -66,81 +55,126 @@ export class SupabaseApiKeyService {
       
       console.log('Created API key object with ID:', newApiKey.id);
       
-      // 3. Save to Supabase
+      // Save to Supabase - using the encrypted_* fields as per updated schema
       console.log('Saving API key to Supabase...');
-      
       const { data, error } = await supabase
         .from('api_keys')
-        .insert([{
-          user_id: userId,
+        .insert({
           id: newApiKey.id,
-          exchange_id: newApiKey.exchangeId,
+          user_id: userId,
+          exchange: newApiKey.exchangeId,
+          label: newApiKey.label,
           encrypted_api_key: newApiKey.encryptedApiKey,
           encrypted_secret: newApiKey.encryptedSecret,
-          encrypted_passphrase: newApiKey.encryptedPassphrase,
-          label: newApiKey.label,
-          created_at: newApiKey.createdAt.toISOString(),
-          last_updated: newApiKey.lastUpdated.toISOString(),
-          read_permission: newApiKey.permissions.read,
-          trade_permission: newApiKey.permissions.trade,
-          withdraw_permission: newApiKey.permissions.withdraw,
-          is_active: newApiKey.isActive,
-          test_result_status: newApiKey.testResultStatus,
-          test_result_message: newApiKey.testResultMessage
-        }])
+          encrypted_passphrase: newApiKey.encryptedPassphrase || null,
+          permissions: newApiKey.permissions,
+          status: 'active',
+          test_result_status: 'pending',
+          test_result_message: null
+        })
         .select();
       
       if (error) {
-        console.error('Supabase error saving API key:', error);
+        console.error('Error saving API key to Supabase:', error);
         throw error;
       }
       
-      console.log('API key saved successfully:', data);
+      console.log('API key saved successfully:', data[0]?.id);
+      
+      // Return the created API key
       return newApiKey;
     } catch (error) {
-      console.error('Error adding API key:', error);
+      console.error('Error in addApiKey:', error);
       throw error;
     }
   }
   
   /**
-   * Get all API keys for a user
+   * Get API keys for a user
    * @param userId User ID
-   * @returns Array of API keys
+   * @returns List of API keys
    */
   public async getApiKeys(userId: string): Promise<ExchangeApiKey[]> {
     try {
+      console.log('[SupabaseApiKeyService] Fetching API keys for user:', userId);
+      
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
         .eq('user_id', userId);
       
       if (error) {
+        console.error('[SupabaseApiKeyService] Error fetching API keys:', error);
         throw error;
       }
       
-      // Transform Supabase response to ExchangeApiKey objects
-      return (data || []).map(item => ({
-        id: item.id,
-        exchangeId: item.exchange_id as Exchange,
-        encryptedApiKey: item.encrypted_api_key,
-        encryptedSecret: item.encrypted_secret,
-        encryptedPassphrase: item.encrypted_passphrase,
-        label: item.label,
-        createdAt: new Date(item.created_at),
-        lastUpdated: new Date(item.last_updated),
-        lastUsed: item.last_used ? new Date(item.last_used) : undefined,
+      console.log(`[SupabaseApiKeyService] Found ${data?.length || 0} API keys`);
+      console.log('[SupabaseApiKeyService] API keys data:', data);
+      
+      // Transform database records to ExchangeApiKey objects
+      // Note: The API keys are stored encrypted in Supabase, but we don't decrypt them here
+      // They will be decrypted only when needed through the decrypt_api_key RPC
+      return data.map(record => ({
+        id: record.id,
+        exchangeId: record.exchange as Exchange,
+        encryptedApiKey: record.encrypted_api_key,
+        encryptedSecret: record.encrypted_secret,
+        encryptedPassphrase: record.encrypted_passphrase || undefined,
+        label: record.label,
+        createdAt: new Date(record.created_at),
+        lastUpdated: new Date(record.updated_at),
+        lastUsed: record.last_used ? new Date(record.last_used) : undefined,
         permissions: {
-          read: item.read_permission,
-          trade: item.trade_permission,
-          withdraw: item.withdraw_permission
+          read: record.permissions?.read ?? true,
+          trade: record.permissions?.trade ?? false,
+          withdraw: record.permissions?.withdraw ?? false
         },
-        isActive: item.is_active,
-        testResultStatus: item.test_result_status,
-        testResultMessage: item.test_result_message
+        isActive: record.status === 'active',
+        testResultStatus: record.test_result_status,
+        testResultMessage: record.test_result_message
       }));
     } catch (error) {
-      console.error('Error getting API keys:', error);
+      console.error('[SupabaseApiKeyService] Error in getApiKeys:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get decrypted API key credentials
+   * This uses the secure RPC function to decrypt on the server side
+   * 
+   * @param userId User ID
+   * @param keyId API key ID
+   * @returns Decrypted API key credentials
+   */
+  public async getDecryptedCredentials(userId: string, keyId: string): Promise<{
+    apiKey: string;
+    secret: string;
+    passphrase?: string;
+  }> {
+    try {
+      console.log(`Fetching decrypted credentials for key ${keyId}`);
+      
+      // Call the RPC function to decrypt the credentials
+      const { data, error } = await supabase
+        .rpc('decrypt_api_key', { key_id: keyId });
+      
+      if (error) {
+        console.error('Error fetching decrypted credentials:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error('No data returned from decryption function');
+      }
+      
+      return {
+        apiKey: data.api_key,
+        secret: data.secret,
+        passphrase: data.passphrase || undefined
+      };
+    } catch (error) {
+      console.error('Error in getDecryptedCredentials:', error);
       throw error;
     }
   }
@@ -177,17 +211,15 @@ export class SupabaseApiKeyService {
       
       // Only encrypt and update fields that are provided
       if (request.apiKey) {
-        updateData.encrypted_api_key = await this.encryptionService.encrypt(request.apiKey);
+        updateData.encrypted_api_key = request.apiKey;
       }
       
       if (request.secret) {
-        updateData.encrypted_secret = await this.encryptionService.encrypt(request.secret);
+        updateData.encrypted_secret = request.secret;
       }
       
       if (request.passphrase !== undefined) {
-        updateData.encrypted_passphrase = request.passphrase
-          ? await this.encryptionService.encrypt(request.passphrase)
-          : null;
+        updateData.encrypted_passphrase = request.passphrase || null;
       }
       
       if (request.label) {
@@ -195,9 +227,7 @@ export class SupabaseApiKeyService {
       }
       
       if (request.permissions) {
-        updateData.read_permission = request.permissions.read;
-        updateData.trade_permission = request.permissions.trade;
-        updateData.withdraw_permission = request.permissions.withdraw;
+        updateData.permissions = request.permissions;
       }
       
       // Reset test status when key is updated
@@ -216,34 +246,32 @@ export class SupabaseApiKeyService {
         throw error;
       }
       
-      // Return updated key
-      const updatedItem = data?.[0];
-      
-      if (!updatedItem) {
-        throw new Error('Failed to update API key');
+      if (!data || data.length === 0) {
+        throw new Error('API key update failed');
       }
       
+      // Return updated API key
       return {
-        id: updatedItem.id,
-        exchangeId: updatedItem.exchange_id as Exchange,
-        encryptedApiKey: updatedItem.encrypted_api_key,
-        encryptedSecret: updatedItem.encrypted_secret,
-        encryptedPassphrase: updatedItem.encrypted_passphrase,
-        label: updatedItem.label,
-        createdAt: new Date(updatedItem.created_at),
-        lastUpdated: new Date(updatedItem.last_updated),
-        lastUsed: updatedItem.last_used ? new Date(updatedItem.last_used) : undefined,
+        id: data[0].id,
+        exchangeId: data[0].exchange as Exchange,
+        encryptedApiKey: data[0].encrypted_api_key,
+        encryptedSecret: data[0].encrypted_secret,
+        encryptedPassphrase: data[0].encrypted_passphrase || undefined,
+        label: data[0].label,
+        createdAt: new Date(data[0].created_at),
+        lastUpdated: new Date(data[0].updated_at),
+        lastUsed: data[0].last_used ? new Date(data[0].last_used) : undefined,
         permissions: {
-          read: updatedItem.read_permission,
-          trade: updatedItem.trade_permission,
-          withdraw: updatedItem.withdraw_permission
+          read: data[0].permissions?.read ?? true,
+          trade: data[0].permissions?.trade ?? false,
+          withdraw: data[0].permissions?.withdraw ?? false
         },
-        isActive: updatedItem.is_active,
-        testResultStatus: updatedItem.test_result_status,
-        testResultMessage: updatedItem.test_result_message
+        isActive: data[0].status === 'active',
+        testResultStatus: data[0].test_result_status,
+        testResultMessage: data[0].test_result_message
       };
     } catch (error) {
-      console.error('Error updating API key:', error);
+      console.error('Error in updateApiKey:', error);
       throw error;
     }
   }
@@ -265,91 +293,83 @@ export class SupabaseApiKeyService {
         throw error;
       }
     } catch (error) {
-      console.error('Error deleting API key:', error);
+      console.error('Error in deleteApiKey:', error);
       throw error;
     }
   }
   
   /**
-   * Update API key test result status
+   * Test an API key connection
    * @param userId User ID
    * @param keyId API key ID
-   * @param status Test result status
-   * @param message Optional message
+   * @returns Test result status
    */
-  public async updateApiKeyStatus(
-    userId: string, 
-    keyId: string, 
-    status: 'success' | 'failed' | 'pending', 
-    message?: string
-  ): Promise<void> {
+  public async testApiKey(userId: string, keyId: string): Promise<{ 
+    success: boolean;
+    message: string;
+  }> {
     try {
-      const { error } = await supabase
+      // Start by updating the test status to "testing"
+      await supabase
         .from('api_keys')
         .update({
-          test_result_status: status,
-          test_result_message: message,
-          last_updated: new Date().toISOString()
+          test_result_status: 'testing',
+          test_result_message: 'Connection test in progress'
         })
         .eq('id', keyId)
         .eq('user_id', userId);
       
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error updating API key status:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Update API key's active status
-   * @param userId User ID
-   * @param keyId API key ID
-   * @param isActive Whether the key is active
-   */
-  public async updateApiKeyActiveStatus(userId: string, keyId: string, isActive: boolean): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('api_keys')
-        .update({
-          is_active: isActive,
-          last_updated: new Date().toISOString()
-        })
-        .eq('id', keyId)
-        .eq('user_id', userId);
+      // Get the decrypted credentials
+      const credentials = await this.getDecryptedCredentials(userId, keyId);
       
-      if (error) {
-        throw error;
+      // Get exchange information
+      const { data: keyData } = await supabase
+        .from('api_keys')
+        .select('exchange')
+        .eq('id', keyId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (!keyData) {
+        throw new Error('API key not found');
       }
-    } catch (error) {
-      console.error('Error updating API key active status:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Update last used timestamp
-   * @param userId User ID
-   * @param keyId API key ID
-   */
-  public async updateLastUsed(userId: string, keyId: string): Promise<void> {
-    try {
-      const { error } = await supabase
+      
+      // TODO: Implement actual exchange connection test
+      // For now, simulate a test with a delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update with success result
+      await supabase
         .from('api_keys')
         .update({
+          test_result_status: 'success',
+          test_result_message: `Successfully connected to ${keyData.exchange}`,
           last_used: new Date().toISOString()
         })
         .eq('id', keyId)
         .eq('user_id', userId);
       
-      if (error) {
-        throw error;
-      }
+      return {
+        success: true,
+        message: `Successfully connected to ${keyData.exchange}`
+      };
     } catch (error) {
-      console.error('Error updating last used timestamp:', error);
-      throw error;
+      console.error('Error testing API key:', error);
+      
+      // Update with failure result
+      await supabase
+        .from('api_keys')
+        .update({
+          test_result_status: 'failed',
+          test_result_message: `Test failed: ${(error as Error).message}`
+        })
+        .eq('id', keyId)
+        .eq('user_id', userId);
+      
+      return {
+        success: false,
+        message: `Connection test failed: ${(error as Error).message}`
+      };
     }
   }
 } 

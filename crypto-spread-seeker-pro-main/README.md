@@ -436,3 +436,65 @@ This architecture ensures:
 - Resource efficiency (only loading adapters actually used)
 - Per-user isolation of exchange connections
 - Maintainable codebase that's easy to extend with new exchanges
+
+# API Key Management System
+
+## Overview
+
+The API Key Management System provides a secure way to store and retrieve exchange API keys for cryptocurrency trading operations. The system ensures that keys are:
+
+1. Encrypted at rest in the database
+2. Accessible only to the authenticated user who created them
+3. Automatically retrieved on application startup
+4. Available for exchange connections without session loss on page refresh
+
+## Architecture
+
+### Storage
+
+- API keys are stored in the Supabase `api_keys` table with the following security measures:
+  - Server-side encryption using PGP cryptography before storage
+  - Row-Level Security (RLS) policies ensuring users can only access their own keys
+  - Separate database function for decryption with security checks
+
+### Key Components
+
+1. **SupabaseApiKeyService**: Manages CRUD operations for API keys
+2. **ProfileService**: Loads user profile including API keys
+3. **ExchangeManager**: Coordinates connections to exchanges
+4. **RealCCXTAdapter**: Handles API connections with retrieved keys
+5. **ExchangeApiManager**: UI component for key management
+
+### Security Measures
+
+- API keys are encrypted by Supabase before storage
+- Decryption happens only when needed via secure RPC function
+- Permissions model limits what operations keys can perform
+- Key validation before storage
+- Automatic reconnection with correct keys on page refresh
+
+## Usage Flow
+
+1. User enters API key and secret in the Exchange API Manager
+2. Keys are validated for correctness
+3. Keys are stored encrypted in Supabase
+4. On application startup, keys are automatically fetched
+5. Exchange connections are established with the stored keys
+6. If a key is invalid or revoked, the user is prompted to update it
+
+## Implementation Notes
+
+- Server-side encryption via PostgreSQL's PGP functions
+- Client-side interaction via Supabase JS client
+- API key validation utility to verify key formats before storage
+- Fallback to demo mode when keys aren't available
+
+## Development
+
+To work with the API key system locally:
+
+1. Set up Supabase and run migrations (see `/supabase/migrations/`)
+2. Configure environment variables:
+   - SUPABASE_URL
+   - SUPABASE_ANON_KEY
+   - ENCRYPTION_KEY (for client-side operations)
