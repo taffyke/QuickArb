@@ -15,5 +15,12 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src")
     }
+  },
+  // Add build options for Netlify deployment
+  build: {
+    outDir: "dist",
+    assetsDir: "assets",
+    minify: true,
+    sourcemap: false
   }
 }); 

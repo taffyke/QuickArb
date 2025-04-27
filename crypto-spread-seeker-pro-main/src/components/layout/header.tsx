@@ -243,78 +243,12 @@ export function Header({ sidebarToggle }: HeaderProps) {
               ))}
             </CommandGroup>
           ))}
-          <CommandGroup heading="Shortcuts">
-            <CommandItem onSelect={() => navigate("/arbitrage/direct")}>
-              <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">arb</kbd>
-              <span>Go to Arbitrage</span>
-            </CommandItem>
-            <CommandItem onSelect={() => navigate("/dashboard")}>
-              <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">dash</kbd>
-              <span>Go to Dashboard</span>
-            </CommandItem>
-            <CommandItem onSelect={() => navigate("/notifications")}>
-              <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">not</kbd>
-              <span>Go to Notifications</span>
-            </CommandItem>
-            <CommandItem onSelect={() => navigate("/settings")}>
-              <kbd className="mr-2 rounded bg-muted px-1.5 text-xs">set</kbd>
-              <span>Go to Settings</span>
-            </CommandItem>
-          </CommandGroup>
         </CommandList>
       </CommandDialog>
 
       <div className="flex items-center gap-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link to="/notifications">
-                <Button variant="outline" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-                    3
-                  </span>
-                  <span className="sr-only">Notifications</span>
-                </Button>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>Notifications</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <UserMenu />
       </div>
-
-      {/* Notification toast */}
-      {showNotificationToast && (
-        <div className="absolute right-0 top-12 z-50 w-72 animate-in fade-in slide-in-from-top-5 duration-300">
-          <div className="rounded-lg border bg-card p-4 shadow-lg">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-medium flex items-center">
-                <Bell className="mr-1 h-3 w-3" />
-                New Notification
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {recentNotifications[currentNotification].time}
-              </span>
-            </div>
-            <p className="text-sm font-medium">{recentNotifications[currentNotification].title}</p>
-            <p className="text-xs text-muted-foreground">
-              {recentNotifications[currentNotification].description}
-            </p>
-            <div className="mt-2 flex justify-end">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-7 text-xs"
-                onClick={() => navigate('/notifications')}
-              >
-                View All
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

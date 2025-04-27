@@ -31,21 +31,22 @@ import {
   RefreshCw, 
   Clock,
   ChevronRight,
-  LogOut
+  LogOut,
+  Computer
 } from "lucide-react";
 import { ExchangeApiManager } from "@/components/profile/ExchangeApiManager";
 
 export default function Profile() {
   const navigate = useNavigate();
   const { user, signOut } = useSupabase();
-  const isDemo = localStorage.getItem('demo_bypass_token') === 'enabled';
+  const isDemo = window.localStorage.getItem('demo_bypass_token') === 'enabled';
   
   const handleSignOut = async () => {
     try {
       console.log('Sign-out initiated');
       if (isDemo) {
         // In demo mode, just clear the local storage token
-        localStorage.removeItem('demo_bypass_token');
+        window.localStorage.removeItem('demo_bypass_token');
         console.log('Demo token removed');
         navigate('/');
       } else {
@@ -153,7 +154,7 @@ export default function Profile() {
       
           {/* Tabs Section */}
           <div className="flex-1">
-            <Tabs defaultValue="account">
+            <Tabs defaultValue="exchanges">
               <TabsList className="grid grid-cols-3 mb-8">
                 <TabsTrigger value="account">Account</TabsTrigger>
                 <TabsTrigger value="security">Security</TabsTrigger>
@@ -172,15 +173,15 @@ export default function Profile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name</Label>
-                        <Input id="name" value={userData.name} />
+                        <Input id="name" defaultValue={userData.name} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email">Email Address</Label>
-                        <Input id="email" type="email" value={userData.email} />
+                        <Input id="email" type="email" defaultValue={userData.email} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="username">Username</Label>
-                        <Input id="username" value="ajohnson" />
+                        <Input id="username" defaultValue={userData.name.toLowerCase().replace(/\s+/g, '')} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
@@ -200,7 +201,7 @@ export default function Profile() {
                     
                     <div className="space-y-2">
                       <Label htmlFor="timezone">Timezone</Label>
-                      <Input id="timezone" value="UTC+3:00 (Moscow, Istanbul)" />
+                      <Input id="timezone" defaultValue="UTC+3:00 (Moscow, Istanbul)" />
                     </div>
                     
                     <Separator />
@@ -249,12 +250,45 @@ export default function Profile() {
                         </div>
                         <Switch checked={userData.twoFactorEnabled} />
                       </div>
+                      
                       {!userData.twoFactorEnabled && (
-                        <Button variant="outline" className="gap-2">
-                          <Lock className="h-4 w-4" />
-                          <span>Set Up 2FA</span>
-                        </Button>
+                        <Button variant="outline" className="mt-2">Set Up 2FA</Button>
                       )}
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium">Session Management</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Manage your active sessions and devices
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm">
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="rounded-md border p-3">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <Computer className="h-4 w-4 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-medium">Current Device</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Last active: Just now
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -263,12 +297,12 @@ export default function Profile() {
               <TabsContent value="exchanges">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Exchange API Keys</CardTitle>
+                    <CardTitle>Exchange Connections</CardTitle>
                     <CardDescription>
-                      Manage your exchange API keys for automated trading and arbitrage detection
+                      Manage your cryptocurrency exchange API keys
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
+                  <CardContent>
                     <ExchangeApiManager userId={userData.userId} />
                   </CardContent>
                 </Card>
@@ -278,5 +312,26 @@ export default function Profile() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Computer icon component
+function Computer(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="4" width="20" height="12" rx="2" ry="2" />
+      <line x1="2" x2="22" y1="20" y2="20" />
+    </svg>
   );
 }

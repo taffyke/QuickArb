@@ -28,7 +28,7 @@ export class RealCCXTAdapter implements ExchangeAdapter {
   private config: RealCCXTAdapterConfig;
   private priceUpdateCallbacks: Array<(data: ExchangePriceData) => void> = [];
   private subscribedSymbols: Set<string> = new Set();
-  private updateIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private updateIntervals: Map<string, number> = new Map();
   private connected: boolean = false;
   private exchangeName: Exchange;
   private cachedSupportedSymbols: string[] | null = null;
@@ -259,45 +259,55 @@ export class RealCCXTAdapter implements ExchangeAdapter {
   }
   
   /**
-   * Set up polling interval for a symbol
+   * Setup polling interval for price updates
    */
   private setupPollingInterval(symbol: string, ccxtSymbol: string): void {
     // Clear existing interval if any
-    if (this.updateIntervals.has(symbol)) {
-      clearInterval(this.updateIntervals.get(symbol)!);
-    }
+    this.clearPollingInterval(symbol);
     
-    // Create a new interval
-    const interval = setInterval(async () => {
+    // Create a polling interval to fetch data periodically
+    const interval = window.setInterval(async () => {
+      if (!this.connected || !this.exchange) {
+        this.clearPollingInterval(symbol);
+        return;
+      }
+      
       try {
-        if (!this.subscribedSymbols.has(symbol)) {
-          clearInterval(interval);
-          return;
-        }
-        
         // Fetch latest ticker data
         const ticker = await this.exchange.fetchTicker(ccxtSymbol);
         
-        // Transform to our format and emit update
-        if (ticker) {
-          const priceData = this.transformTickerToExchangePriceData(ticker, symbol);
-          this.emitPriceUpdate(priceData);
-        }
+        // Transform and emit
+        const priceData = this.transformTickerToExchangePriceData(ticker, symbol);
+        this.emitPriceUpdate(priceData);
       } catch (error) {
-        console.error(`[RealCCXTAdapter] Error fetching price for ${symbol} on ${this.exchangeName}:`, error);
+        console.warn(`[RealCCXTAdapter] Error polling ${symbol} on ${this.exchangeName}:`, error);
         
-        // Try to reload markets if there's an error, might be a temporary issue
-        if (this.exchange) {
+        // If the error is severe (like connection lost), try to reconnect
+        if ((error as Error).message?.includes('ECONNRESET') || 
+            (error as Error).message?.includes('NetworkError')) {
+          this.connected = false;
           try {
-            await this.exchange.loadMarkets();
-          } catch (e) {
-            // Ignore error here, we'll try again on next interval
+            await this.connect();
+          } catch (reconnectError) {
+            console.error(`[RealCCXTAdapter] Failed to reconnect to ${this.exchangeName}:`, reconnectError);
           }
         }
       }
-    }, this.config.throttleMs);
+    }, this.config.throttleMs || 5000);
     
+    // Store interval ID
     this.updateIntervals.set(symbol, interval);
+  }
+  
+  /**
+   * Clear polling interval for a symbol
+   */
+  private clearPollingInterval(symbol: string): void {
+    const interval = this.updateIntervals.get(symbol);
+    if (interval) {
+      window.clearInterval(interval);
+      this.updateIntervals.delete(symbol);
+    }
   }
   
   /**
@@ -312,10 +322,7 @@ export class RealCCXTAdapter implements ExchangeAdapter {
     this.subscribedSymbols.delete(symbol);
     
     // Clear interval
-    if (this.updateIntervals.has(symbol)) {
-      clearInterval(this.updateIntervals.get(symbol)!);
-      this.updateIntervals.delete(symbol);
-    }
+    this.clearPollingInterval(symbol);
     
     console.log(`[RealCCXTAdapter] Unsubscribed from ${symbol} on ${this.exchangeName}`);
   }
@@ -343,8 +350,7 @@ export class RealCCXTAdapter implements ExchangeAdapter {
   public async disconnect(): Promise<void> {
     // Clear all intervals
     for (const [symbol, interval] of this.updateIntervals.entries()) {
-      clearInterval(interval);
-      this.updateIntervals.delete(symbol);
+      this.clearPollingInterval(symbol);
     }
     
     // Clear subscribed symbols

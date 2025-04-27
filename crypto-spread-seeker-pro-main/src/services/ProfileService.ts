@@ -79,9 +79,9 @@ export class ProfileService {
   private isAuthenticated = false;
 
   private constructor() {
-    this.encryptionService = EncryptionService.getInstance();
-    this.supabaseApiKeyService = SupabaseApiKeyService.getInstance();
-    this.supabaseUserService = SupabaseUserService.getInstance();
+    this.encryptionService = new EncryptionService();
+    this.supabaseApiKeyService = new SupabaseApiKeyService(supabase);
+    this.supabaseUserService = new SupabaseUserService(supabase);
   }
 
   /**
@@ -100,12 +100,34 @@ export class ProfileService {
    */
   public async initializeUserProfile(userId: string): Promise<UserProfile> {
     try {
-      this.userProfile = await this.supabaseUserService.initializeUserProfile(userId);
+      this.userProfile = await this.supabaseUserService.getUserProfile(userId);
+      
+      // If profile doesn't exist, create a new one
+      if (!this.userProfile) {
+        this.userProfile = await this.supabaseUserService.createUserProfile(userId);
+      }
+      
       this.isAuthenticated = true;
       return this.userProfile;
     } catch (error) {
       console.error('Error initializing user profile:', error);
-      throw error;
+      
+      // Create a minimal profile in memory if Supabase fails
+      this.userProfile = {
+        userId,
+        email: '',
+        preferredExchanges: [],
+        apiKeys: [],
+        settings: {
+          notificationsEnabled: true,
+          theme: 'system',
+          autoRefreshInterval: 30,
+          riskTolerance: 'medium'
+        }
+      };
+      
+      this.isAuthenticated = true;
+      return this.userProfile;
     }
   }
 
@@ -245,52 +267,9 @@ export class ProfileService {
   }
 
   /**
-   * Rotate API credentials (create new key and delete old one)
-   */
-  public async rotateApiKey(keyId: string, newApiKey: string, newSecret: string, newPassphrase?: string): Promise<ExchangeApiKey> {
-    if (!this.isAuthenticated || !this.userProfile) {
-      throw new Error('User not authenticated');
-    }
-
-    // Find the key to update
-    const keyIndex = this.userProfile.apiKeys.findIndex(k => k.id === keyId);
-    if (keyIndex === -1) {
-      throw new Error(`API key with ID ${keyId} not found`);
-    }
-
-    const existingKey = this.userProfile.apiKeys[keyIndex];
-
-    try {
-      // Create request with new credentials but keep other settings
-      const request: ApiKeyRequest = {
-        exchangeId: existingKey.exchangeId,
-        apiKey: newApiKey,
-        secret: newSecret,
-        passphrase: newPassphrase,
-        label: existingKey.label,
-        permissions: existingKey.permissions
-      };
-
-      // Use the update endpoint with the new credentials
-      const updatedKey = await this.supabaseApiKeyService.updateApiKey(
-        this.userProfile.userId,
-        keyId,
-        request
-      );
-      
-      // Update local state
-      this.userProfile.apiKeys[keyIndex] = updatedKey;
-
-      return updatedKey;
-    } catch (error) {
-      console.error('Error rotating API key:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Test if an API key can successfully connect to an exchange
-   * @param keyId The ID of the key to test
+   * Test API key connection
+   * @param keyId ID of the key to test
+   * @returns true if connection successful, false otherwise
    */
   public async testApiKeyConnection(keyId: string): Promise<boolean> {
     if (!this.isAuthenticated || !this.userProfile) {
@@ -298,109 +277,97 @@ export class ProfileService {
     }
 
     // Find the key to test
-    const keyIndex = this.userProfile.apiKeys.findIndex(k => k.id === keyId);
-    if (keyIndex === -1) {
+    const apiKey = this.userProfile.apiKeys.find(k => k.id === keyId);
+    if (!apiKey) {
       throw new Error(`API key with ID ${keyId} not found`);
     }
 
     try {
-      // Update status to pending
-      await this.supabaseApiKeyService.updateApiKeyStatus(
-        this.userProfile.userId,
-        keyId,
-        'pending'
-      );
-      
-      // Update local status
-      this.userProfile.apiKeys[keyIndex].testResultStatus = 'pending';
-      this.userProfile.apiKeys[keyIndex].testResultMessage = 'Testing connection...';
-
-      // Get decrypted credentials for testing
+      // First, decrypt the credentials
       const credentials = await this.getDecryptedCredentials(keyId);
       
-      // Import adapter factory dynamically to avoid circular dependencies
-      const { createExchangeAdapter } = await import('../adapters/adapter-factory');
-      
-      // Create a test adapter and try to connect
-      const exchange = this.userProfile.apiKeys[keyIndex].exchangeId;
-      const adapter = await createExchangeAdapter(exchange, {
-        apiKey: credentials.apiKey,
-        apiSecret: credentials.secret,
-        passphrase: credentials.passphrase
+      // Call Supabase function to test the connection
+      const { data, error } = await supabase.functions.invoke('test-exchange-connection', {
+        body: {
+          exchange: apiKey.exchangeId,
+          apiKey: credentials.apiKey,
+          secret: credentials.secret,
+          passphrase: credentials.passphrase
+        }
       });
       
-      // Try to connect
-      await adapter.connect();
+      if (error) {
+        console.error('Error testing API key connection:', error);
+        throw error;
+      }
       
-      // Disconnect after successful test
-      await adapter.disconnect();
+      const success = data?.success === true;
       
-      // Update status to success
-      await this.supabaseApiKeyService.updateApiKeyStatus(
+      // Update key status in Supabase and local state
+      await this.supabaseApiKeyService.updateApiKeyTestResult(
         this.userProfile.userId,
         keyId,
-        'success',
-        'Connection successful'
+        success,
+        data?.message || (success ? 'Connection successful' : 'Connection failed')
       );
       
-      // Update local status
-      this.userProfile.apiKeys[keyIndex].testResultStatus = 'success';
-      this.userProfile.apiKeys[keyIndex].testResultMessage = 'Connection successful';
+      // Update local state as well
+      const keyIndex = this.userProfile.apiKeys.findIndex(k => k.id === keyId);
+      if (keyIndex >= 0) {
+        this.userProfile.apiKeys[keyIndex].testResultStatus = success ? 'success' : 'failed';
+        this.userProfile.apiKeys[keyIndex].testResultMessage = data?.message;
+      }
       
-      // Update last used timestamp
-      await this.supabaseApiKeyService.updateLastUsed(
-        this.userProfile.userId,
-        keyId
-      );
-      
-      // Update local last used
-      this.userProfile.apiKeys[keyIndex].lastUsed = new Date();
-
-      return true;
+      return success;
     } catch (error) {
-      console.error(`Error testing API key connection for ${this.userProfile.apiKeys[keyIndex].exchangeId}:`, error);
+      console.error('Error testing API key:', error);
       
-      // Update status to failed
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      // Update key status to failed
+      try {
+        await this.supabaseApiKeyService.updateApiKeyTestResult(
+          this.userProfile.userId,
+          keyId,
+          false,
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+      } catch (updateError) {
+        // Ignore errors from the status update
+        console.error('Error updating API key test result:', updateError);
+      }
       
-      await this.supabaseApiKeyService.updateApiKeyStatus(
-        this.userProfile.userId,
-        keyId,
-        'failed',
-        errorMessage
-      );
-      
-      // Update local status
-      this.userProfile.apiKeys[keyIndex].testResultStatus = 'failed';
-      this.userProfile.apiKeys[keyIndex].testResultMessage = errorMessage;
-
       return false;
     }
   }
 
   /**
    * Get all API keys for a specific exchange
-   * @param exchange Exchange to get keys for
+   * @param exchange The exchange to get keys for
+   * @returns Array of API keys for the specified exchange
    */
   public getApiKeysForExchange(exchange: Exchange): ExchangeApiKey[] {
-    if (!this.userProfile) {
+    if (!this.isAuthenticated || !this.userProfile) {
       return [];
     }
-    
-    return this.userProfile.apiKeys.filter(
-      key => key.exchangeId === exchange && key.isActive
-    );
+
+    return this.userProfile.apiKeys
+      .filter(key => key.exchangeId === exchange && key.isActive);
   }
 
   /**
-   * Get all exchanges with active API keys
+   * Get list of exchanges with active API keys
+   * @returns Array of exchange IDs
    */
   public getExchangesWithActiveKeys(): Exchange[] {
-    if (!this.userProfile) {
+    if (!this.isAuthenticated || !this.userProfile) {
       return [];
     }
+
+    const exchanges = new Set<Exchange>();
+    this.userProfile.apiKeys
+      .filter(key => key.isActive)
+      .forEach(key => exchanges.add(key.exchangeId));
     
-    return this.supabaseUserService.getExchangesWithActiveKeys();
+    return Array.from(exchanges);
   }
 
   /**
@@ -408,31 +375,30 @@ export class ProfileService {
    */
   private updatePreferredExchanges(): void {
     if (!this.userProfile) return;
-
-    // Get all exchanges that have at least one active key
-    const exchangesWithKeys = new Set<Exchange>();
     
-    for (const key of this.userProfile.apiKeys) {
-      if (key.isActive) {
-        exchangesWithKeys.add(key.exchangeId);
-      }
+    // Get all exchanges with active keys
+    const exchangesWithKeys = this.getExchangesWithActiveKeys();
+    
+    // Update preferred exchanges if it doesn't match
+    if (JSON.stringify(this.userProfile.preferredExchanges.sort()) !== 
+        JSON.stringify(exchangesWithKeys.sort())) {
+      
+      this.userProfile.preferredExchanges = exchangesWithKeys;
+      
+      // Update in Supabase (fire and forget, don't await)
+      this.supabaseUserService.updatePreferredExchanges(
+        this.userProfile.userId,
+        exchangesWithKeys
+      ).catch(error => {
+        console.error('Error updating preferred exchanges:', error);
+      });
     }
-    
-    // Update preferred exchanges
-    this.userProfile.preferredExchanges = Array.from(exchangesWithKeys);
-    
-    // Update in Supabase (fire and forget)
-    this.supabaseUserService.updatePreferredExchanges(
-      this.userProfile.userId,
-      this.userProfile.preferredExchanges
-    ).catch(error => {
-      console.error('Error updating preferred exchanges:', error);
-    });
   }
 
   /**
    * Update user settings
-   * @param settings New settings (partial)
+   * @param settings Settings to update
+   * @returns Updated user profile
    */
   public async updateUserSettings(settings: Partial<UserProfile['settings']>): Promise<UserProfile> {
     if (!this.isAuthenticated || !this.userProfile) {
@@ -440,11 +406,19 @@ export class ProfileService {
     }
 
     try {
-      // Update settings using Supabase service
-      return await this.supabaseUserService.updateUserSettings(
+      // Merge settings
+      const updatedSettings = {...this.userProfile.settings, ...settings};
+      
+      // Update settings in Supabase
+      await this.supabaseUserService.updateUserSettings(
         this.userProfile.userId,
-        settings
+        updatedSettings
       );
+      
+      // Update local state
+      this.userProfile.settings = updatedSettings;
+      
+      return this.userProfile;
     } catch (error) {
       console.error('Error updating user settings:', error);
       throw error;
@@ -452,9 +426,9 @@ export class ProfileService {
   }
 
   /**
-   * Get decrypted credentials for an API key
-   * @param keyId The ID of the key to decrypt
-   * @returns Decrypted credentials
+   * Get decrypted API key credentials
+   * @param keyId ID of the key to decrypt
+   * @returns Decrypted credentials object
    */
   public async getDecryptedCredentials(keyId: string): Promise<{
     apiKey: string;
@@ -465,73 +439,84 @@ export class ProfileService {
       throw new Error('User not authenticated');
     }
 
-    // Find the key in the user profile
-    const key = this.userProfile.apiKeys.find(k => k.id === keyId);
-    if (!key) {
+    // Find the key
+    const apiKey = this.userProfile.apiKeys.find(k => k.id === keyId);
+    if (!apiKey) {
       throw new Error(`API key with ID ${keyId} not found`);
     }
 
     try {
-      // Use the SupabaseApiKeyService to get decrypted credentials
-      // This calls the server-side decrypt function
-      const credentials = await this.supabaseApiKeyService.getDecryptedCredentials(
-        this.userProfile.userId, 
-        keyId
-      );
+      // Call Supabase RPC function to get decrypted credentials
+      const { data, error } = await supabase.rpc('decrypt_api_key', { key_id: keyId });
       
-      // Update the last used timestamp
-      this.markApiKeyAsUsed(keyId);
-
-      return credentials;
+      if (error) {
+        throw error;
+      }
+      
+      // Mark as used
+      await this.markApiKeyAsUsed(keyId);
+      
+      return {
+        apiKey: data.api_key,
+        secret: data.secret,
+        passphrase: data.passphrase
+      };
     } catch (error) {
-      console.error('Error decrypting credentials:', error);
-      throw new Error(`Failed to decrypt credentials: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error getting decrypted credentials:', error);
+      throw error;
     }
   }
 
   /**
-   * Mark an API key as used (update last_used timestamp)
-   * @param keyId The API key ID
+   * Mark API key as used (update last_used timestamp)
+   * @param keyId ID of the key to mark as used
    */
   private async markApiKeyAsUsed(keyId: string): Promise<void> {
-    if (!this.isAuthenticated || !this.userProfile) {
-      return;
-    }
+    if (!this.userProfile) return;
 
     try {
-      // Update the last used timestamp in the database
-      await this.supabaseApiKeyService.testApiKey(this.userProfile.userId, keyId);
-
-      // Also update in our local cache
+      await this.supabaseApiKeyService.updateApiKeyLastUsed(
+        this.userProfile.userId,
+        keyId
+      );
+      
+      // Update local state
       const keyIndex = this.userProfile.apiKeys.findIndex(k => k.id === keyId);
       if (keyIndex >= 0) {
         this.userProfile.apiKeys[keyIndex].lastUsed = new Date();
       }
     } catch (error) {
-      // Log but don't throw - this is non-critical
-      console.warn('Failed to update last used timestamp:', error);
+      // Don't throw, just log the error
+      console.error('Error updating API key last used time:', error);
     }
   }
 
   /**
-   * Clear user session on logout
+   * Logout the user
    */
-  public logout(): void {
-    this.userProfile = null;
-    this.isAuthenticated = false;
-    this.encryptionService.reset();
-    this.supabaseUserService.resetProfile();
-    
-    // Also sign out from Supabase auth
-    supabase.auth.signOut().catch(error => {
-      console.error('Error signing out from Supabase:', error);
-    });
+  public async logout(): Promise<void> {
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear local state
+      this.userProfile = null;
+      this.isAuthenticated = false;
+    } catch (error) {
+      console.error('Error during logout:', error);
+      
+      // Still clear local state even if API call fails
+      this.userProfile = null;
+      this.isAuthenticated = false;
+      
+      throw error;
+    }
   }
 
   /**
    * Update API key active status
-   * @param keyId API key ID
-   * @param isActive Whether the key is active
+   * @param keyId ID of the key to update
+   * @param isActive New active status
    */
   public async updateApiKeyStatus(keyId: string, isActive: boolean): Promise<ExchangeApiKey> {
     if (!this.isAuthenticated || !this.userProfile) {
@@ -545,23 +530,22 @@ export class ProfileService {
     }
 
     try {
-      // Update in Supabase
-      await this.supabaseApiKeyService.updateApiKeyActiveStatus(
+      // Update API key status in Supabase
+      const updatedKey = await this.supabaseApiKeyService.updateApiKeyStatus(
         this.userProfile.userId,
         keyId,
         isActive
       );
       
       // Update local state
-      this.userProfile.apiKeys[keyIndex].isActive = isActive;
-      this.userProfile.apiKeys[keyIndex].lastUpdated = new Date();
+      this.userProfile.apiKeys[keyIndex] = updatedKey;
       
-      // If disabling, check if we need to update preferred exchanges
+      // If we're deactivating a key, check if we need to update preferred exchanges
       if (!isActive) {
         this.updatePreferredExchanges();
       }
-
-      return this.userProfile.apiKeys[keyIndex];
+      
+      return updatedKey;
     } catch (error) {
       console.error('Error updating API key status:', error);
       throw error;
