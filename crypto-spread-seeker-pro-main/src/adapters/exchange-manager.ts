@@ -65,7 +65,7 @@ export class ExchangeManager {
   private errorListeners: Array<(error: Error, exchange: Exchange, isWebSocket: boolean) => void> = [];
   private options: ExchangeManagerOptions;
   private throttledUpdates: Map<string, {
-    timer: number | null;
+    timer: NodeJS.Timeout | null;
     latest: PriceUpdateEvent;
     updateCount: number;
   }> = new Map();
@@ -299,38 +299,48 @@ export class ExchangeManager {
   }
   
   /**
-   * Private method to throttle price updates
+   * Throttle updates to not exceed maxUpdatesPerSecond per market
    */
   private throttleUpdate(key: string, event: PriceUpdateEvent): void {
-    const now = Date.now();
-    const minInterval = 1000 / (this.options.maxUpdatesPerSecond || 10);
+    const maxUpdatesPerSecond = this.options.maxUpdatesPerSecond || 10;
+    const throttleInterval = Math.floor(1000 / maxUpdatesPerSecond);
     
-    if (!this.throttledUpdates.has(key)) {
-      // First update for this key, emit immediately
-      this.emitPriceUpdate(event);
-      
-      this.throttledUpdates.set(key, {
+    let throttleData = this.throttledUpdates.get(key);
+    
+    if (!throttleData) {
+      // First update for this key
+      throttleData = {
         timer: null,
         latest: event,
-        updateCount: 1
-      });
-      return;
-    }
-    
-    const updateData = this.throttledUpdates.get(key)!;
-    updateData.latest = event;
-    updateData.updateCount++;
-    
-    if (updateData.timer === null) {
-      // Schedule the next update
-      updateData.timer = window.setTimeout(() => {
-        const currentData = this.throttledUpdates.get(key);
-        if (currentData) {
-          this.emitPriceUpdate(currentData.latest);
-          currentData.timer = null;
-          currentData.updateCount = 0;
+        updateCount: 0
+      };
+      this.throttledUpdates.set(key, throttleData);
+      
+      // Emit immediately and schedule next update
+      this.emitPriceUpdate(event);
+      throttleData.updateCount = 1;
+      
+      // Schedule cleanup for throttle data
+      throttleData.timer = setTimeout(() => {
+        // If there are no pending updates, we're done
+        if (throttleData!.updateCount <= 1) {
+          this.throttledUpdates.delete(key);
+        } else {
+          // Otherwise, emit the latest data and reset the counter
+          this.emitPriceUpdate(throttleData!.latest);
+          
+          // Schedule the next check
+          throttleData!.timer = setTimeout(() => {
+            this.throttledUpdates.delete(key);
+          }, throttleInterval);
+          
+          throttleData!.updateCount = 0;
         }
-      }, minInterval);
+      }, throttleInterval);
+    } else {
+      // Update already exists, just store latest data and increment count
+      throttleData.latest = event;
+      throttleData.updateCount++;
     }
   }
   

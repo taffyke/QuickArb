@@ -13,7 +13,6 @@ type SupabaseContextType = {
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   isInitialized: boolean;
-  supabase: typeof supabase;
 };
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
@@ -50,10 +49,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             access_token: 'mock-token',
             refresh_token: 'mock-refresh',
             expires_in: 3600,
-            user: mockUser as User,
-            expires_at: Math.floor(Date.now() / 1000) + 3600,
-            provider_token: null,
-            provider_refresh_token: null
+            user: mockUser as User 
           } as Session);
           
           // Initialize mock profile
@@ -151,10 +147,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           access_token: 'mock-token',
           refresh_token: 'mock-refresh',
           expires_in: 3600,
-          user: mockUser as User,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          provider_token: null,
-          provider_refresh_token: null
+          user: mockUser as User 
         } as Session);
         
         if (mockUser) {
@@ -237,10 +230,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           access_token: 'mock-token',
           refresh_token: 'mock-refresh',
           expires_in: 3600,
-          user: mockUser as User,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          provider_token: null,
-          provider_refresh_token: null
+          user: mockUser as User 
         } as Session);
         
         if (mockUser) {
@@ -261,8 +251,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Provide both auth methods and the supabase client
-  const contextValue: SupabaseContextType = {
+  const value = {
     session,
     user,
     isLoading,
@@ -271,11 +260,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     signOut,
     signInWithGoogle: handleGoogleSignIn,
     isInitialized,
-    supabase
   };
 
   return (
-    <SupabaseContext.Provider value={contextValue}>
+    <SupabaseContext.Provider value={value}>
       {children}
     </SupabaseContext.Provider>
   );

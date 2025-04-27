@@ -178,14 +178,114 @@ function transformPriceUpdateToPriceData(update: PriceUpdateEvent): PriceData {
   };
 }
 
+// Detect arbitrage opportunities from price data
+function detectArbitrageOpportunities(priceData: PriceData[]): ArbitrageOpportunity[] {
+  const opportunities: ArbitrageOpportunity[] = [];
+  const symbols = [...new Set(priceData.map(data => data.pair))];
+  
+  for (const symbol of symbols) {
+    const symbolData = priceData.filter(data => data.pair === symbol);
+    
+    // Need at least 2 exchanges to compare
+    if (symbolData.length < 2) continue;
+    
+    // Compare each exchange with every other exchange
+    for (let i = 0; i < symbolData.length; i++) {
+      for (let j = i + 1; j < symbolData.length; j++) {
+        const fromData = symbolData[i];
+        const toData = symbolData[j];
+        
+        // Calculate spread
+        const spreadAmount = Math.abs(fromData.price - toData.price);
+        const spreadPercent = (spreadAmount / Math.min(fromData.price, toData.price)) * 100;
+        
+        // Only consider meaningful spreads (above 0.5%)
+        if (spreadPercent < 0.5) continue;
+        
+        // Determine which exchange has the lower price (buy from) and higher price (sell to)
+        const [buyData, sellData] = fromData.price < toData.price 
+          ? [fromData, toData] 
+          : [toData, fromData];
+          
+        // Calculate estimated profit (using the lower volume of the two exchanges)
+        const volume = Math.min(buyData.volume24h, sellData.volume24h) * 0.001; // 0.1% of volume
+        const estimatedProfit = volume * (spreadPercent / 100);
+        
+        // Estimate fees
+        const exchangeFees = estimatedProfit * 0.1; // 10% exchange fees
+        const networkFees = 5; // Fixed network fee in USD
+        const otherFees = estimatedProfit * 0.05; // 5% slippage and other costs
+        const totalFees = exchangeFees + networkFees + otherFees;
+        
+        // Create mock network info (would be replaced with real data)
+        const networks = [
+          {
+            name: "Ethereum",
+            fee: 5 + Math.random() * 15,
+            speed: "Medium",
+            congestion: "Medium",
+            estimatedTimeMinutes: 10
+          },
+          {
+            name: "Binance Smart Chain",
+            fee: 0.5 + Math.random() * 2,
+            speed: "Fast",
+            congestion: "Low",
+            estimatedTimeMinutes: 3
+          },
+          {
+            name: "Solana",
+            fee: 0.01 + Math.random() * 0.05,
+            speed: "Fast",
+            congestion: "Low",
+            estimatedTimeMinutes: 1
+          }
+        ];
+        
+        // Choose best network (lowest fee in this example)
+        const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
+        
+        opportunities.push({
+          id: `arb-${buyData.exchange}-${sellData.exchange}-${symbol}`,
+          fromExchange: buyData.exchange,
+          toExchange: sellData.exchange,
+          pair: symbol,
+          spreadAmount,
+          spreadPercent,
+          volume24h: volume,
+          timestamp: new Date(),
+          estimatedProfit,
+          fees: totalFees,
+          netProfit: estimatedProfit - totalFees,
+          networks,
+          bestNetwork,
+          feeDetails: {
+            exchangeFees,
+            networkFees,
+            otherFees
+          },
+          fromExchangePrice: buyData.price,
+          toExchangePrice: sellData.price
+        });
+      }
+    }
+  }
+  
+  // Sort by net profit
+  return opportunities.sort((a, b) => b.netProfit - a.netProfit);
+}
+
 // Provider component
 export function CryptoProvider({ children }: { children: ReactNode }) {
-  const { notifyError, notifySuccess } = useNotifications();
-  const { appSettings } = useAppSettings();
+  const { settings } = useAppSettings();
+  const { notifyArbitrageOpportunity, notifyPriceAlert } = useNotifications();
   const { user } = useSupabase();
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [exchangeManager] = useState<ExchangeManager>(() => new ExchangeManager({
+    userId: user?.id
+  }));
+  const [exchanges] = useState<Exchange[]>(allExchanges);
   const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [arbitrageOpportunities, setArbitrageOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [triangularOpportunities, setTriangularOpportunities] = useState<TriangularOpportunity[]>([]);
@@ -193,266 +293,175 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   const [exchangeVolumes, setExchangeVolumes] = useState<ExchangeVolume[]>([]);
   const [selectedPair, setSelectedPair] = useState<string>(commonPairs[0]);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [apiKeysInitialized, setApiKeysInitialized] = useState<boolean>(false);
   
-  // Create a ref to store the ExchangeManager instance
-  const exchangeManagerRef = React.useRef<ExchangeManager | null>(null);
-  
-  // Initialize on component mount
+  // Update user ID when user changes
   useEffect(() => {
-    console.log('CryptoProvider: Initializing');
-    
-    // Create exchange manager instance
-    const useMockData = appSettings?.useMockData || !user;
-    exchangeManagerRef.current = new ExchangeManager({
-      useMockData,
-      userId: user?.id,
-      maxUpdatesPerSecond: 5,
-      autoReconnect: true,
-      logErrors: true
-    });
-    
-    // Get user API keys
     if (user?.id) {
+      // Make sure the exchangeManager has the latest user ID
+      exchangeManager.setUserId(user.id);
+      
+      // Initialize API keys
       initializeApiKeys();
-    } else {
-      // If not logged in, initialize with default exchanges
-      initializeExchanges();
     }
+  }, [user?.id, exchangeManager]);
+  
+  // Load and set API keys
+  const initializeApiKeys = async () => {
+    if (!user?.id || apiKeysInitialized) return;
+    
+    try {
+      console.log('[CryptoProvider] Starting API key initialization for user:', user.id);
+      
+      // Get the profile service
+      const profileService = ProfileService.getInstance();
+      
+      // Get the user profile which will load API keys
+      console.log('[CryptoProvider] Fetching user profile...');
+      const profile = await profileService.getUserProfile();
+      console.log('[CryptoProvider] User profile loaded, API keys found:', profile?.apiKeys?.length || 0);
+      
+      if (profile?.apiKeys && profile.apiKeys.length > 0) {
+        // Set API keys for each exchange
+        for (const apiKey of profile.apiKeys) {
+          try {
+            console.log(`[CryptoProvider] Setting API key for exchange: ${apiKey.exchangeId}`);
+            exchangeManager.setApiKey(apiKey.exchangeId, apiKey.id);
+          } catch (error) {
+            console.error(`Failed to set API key for ${apiKey.exchangeId}:`, error);
+          }
+        }
+        
+        console.log(`[CryptoProvider] Initialized ${profile.apiKeys.length} API keys`);
+      } else {
+        console.log('[CryptoProvider] No API keys found for user');
+      }
+      
+      setApiKeysInitialized(true);
+    } catch (error) {
+      console.error('[CryptoProvider] Failed to initialize API keys:', error);
+    }
+  };
+  
+  // Initialize exchange connections
+  useEffect(() => {
+    async function initializeExchanges() {
+      setIsLoading(true);
+      
+      try {
+        // Connect to all exchanges
+        await exchangeManager.connectAll();
+        
+        // Subscribe to price updates for common pairs
+        await exchangeManager.subscribeToSymbols(commonPairs);
+        
+        // Register price update handler
+        exchangeManager.onPriceUpdate(handlePriceUpdate);
+        
+        // Initial data load is complete
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to initialize exchanges:', error);
+        setIsLoading(false);
+      }
+    }
+    
+    initializeExchanges();
     
     // Cleanup on unmount
     return () => {
-      if (exchangeManagerRef.current) {
-        exchangeManagerRef.current.disconnectAll();
-      }
+      exchangeManager.disconnectAll();
     };
-  }, [user?.id]);
+  }, [exchangeManager]);
   
-  // Initialize API keys for authenticated users
-  const initializeApiKeys = async () => {
-    try {
-      const profileService = ProfileService.getInstance();
-      if (!user?.id) return;
+  // Handle price updates from exchanges
+  const handlePriceUpdate = useCallback((update: PriceUpdateEvent) => {
+    // Transform to our PriceData format
+    const newPriceData = transformPriceUpdateToPriceData(update);
+    
+    // Update price data state
+    setPriceData(current => {
+      // Replace existing data for this exchange/pair, or add new
+      const existingIndex = current.findIndex(
+        data => data.exchange === update.exchange && data.pair === newPriceData.pair
+      );
       
-      await profileService.initializeUserProfile(user.id);
-      
-      // Get user's preferred exchanges with API keys
-      const exchangesWithKeys = profileService.getExchangesWithActiveKeys();
-      
-      // Set active exchanges
-      setExchanges(exchangesWithKeys.length > 0 ? exchangesWithKeys : ['Binance', 'Bybit', 'KuCoin']);
-      
-      // Initialize exchanges
-      await initializeExchanges();
-    } catch (error) {
-      console.error('Error initializing API keys:', error);
-      notifyError('Failed to load API keys', 'Using default exchanges instead.');
-      
-      // Fallback to default exchanges
-      setExchanges(['Binance', 'Bybit', 'KuCoin']);
-      await initializeExchanges();
-    }
-  };
-  
-  // Set up exchange connections and listeners
-  async function initializeExchanges() {
-    try {
-      setIsLoading(true);
-      
-      if (!exchangeManagerRef.current) {
-        throw new Error('Exchange manager not initialized');
-      }
-      
-      // Register price update handler
-      exchangeManagerRef.current.onPriceUpdate((update) => {
-        // Transform to our PriceData format
-        const newPriceData = transformPriceUpdateToPriceData(update);
+      // Check for significant price changes to trigger alerts
+      if (existingIndex >= 0) {
+        const existingData = current[existingIndex];
+        const priceChange = ((newPriceData.price - existingData.price) / existingData.price) * 100;
         
-        // Update state (using functional update to ensure we have latest state)
-        setPriceData((currentData) => {
-          // Find if we already have data for this exchange and pair
-          const existingIndex = currentData.findIndex(
-            item => item.exchange === newPriceData.exchange && item.pair === newPriceData.pair
-          );
-          
-          if (existingIndex >= 0) {
-            // Update existing
-            const updatedData = [...currentData];
-            updatedData[existingIndex] = newPriceData;
-            return updatedData;
-          } else {
-            // Add new
-            return [...currentData, newPriceData];
-          }
-        });
-      });
-      
-      // Register error handler
-      exchangeManagerRef.current.onError((error, exchange, isWebSocket) => {
-        console.error(`[CryptoContext] Error from ${exchange}:`, error);
-        notifyError(`Error from ${exchange}`, error.message);
-      });
-      
-      // Connect to exchanges
-      await exchangeManagerRef.current.connectAll();
-      
-      // Get all supported symbols
-      const supportedSymbols = await exchangeManagerRef.current.getCommonSymbols();
-      console.log('Common supported symbols:', supportedSymbols);
-      
-      // Subscribe to initial pairs
-      const initialPairs = supportedSymbols.length > 0 
-        ? supportedSymbols.slice(0, 5)  // Use first 5 common symbols
-        : commonPairs.slice(0, 5);      // Fallback to predefined pairs
-      
-      await exchangeManagerRef.current.subscribeToSymbols(initialPairs);
-      
-      // Initial data fetch
-      await refreshData();
-      
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error initializing exchanges:', error);
-      notifyError('Exchange Connection Error', 'Failed to connect to cryptocurrency exchanges');
-      setIsLoading(false);
-    }
-  }
-  
-  // Refresh all data
-  const refreshData = useCallback(async () => {
-    if (!exchangeManagerRef.current) return;
-    
-    try {
-      await exchangeManagerRef.current.refreshAllPrices();
-      setLastRefreshTime(new Date());
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    }
-  }, []);
-  
-  // Subscribe to new symbol
-  const subscribeToSymbol = async (symbol: string) => {
-    if (!exchangeManagerRef.current) return;
-    try {
-      await exchangeManagerRef.current.subscribeToSymbol(symbol);
-    } catch (error) {
-      console.error(`Error subscribing to ${symbol}:`, error);
-    }
-  };
-  
-  // Unsubscribe from symbol
-  const unsubscribeFromSymbol = async (symbol: string) => {
-    if (!exchangeManagerRef.current) return;
-    try {
-      await exchangeManagerRef.current.unsubscribeFromSymbol(symbol);
-    } catch (error) {
-      console.error(`Error unsubscribing from ${symbol}:`, error);
-    }
-  };
-  
-  // Detect arbitrage opportunities whenever price data changes
-  useEffect(() => {
-    // Only run if we have enough data (at least 2 exchanges with data)
-    if (priceData.length < 2) return;
-    
-    // Group by pairs to see if we have multiple exchanges with the same pair
-    const pairsWithMultipleExchanges = priceData.reduce((acc, data) => {
-      acc[data.pair] = (acc[data.pair] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    // Filter pairs that have data from at least 2 exchanges
-    const validPairs = Object.entries(pairsWithMultipleExchanges)
-      .filter(([_, count]) => count >= 2)
-      .map(([pair]) => pair);
-    
-    if (validPairs.length === 0) return;
-    
-    // Detect opportunities
-    const newArbitrageOpportunities = [];
-    
-    for (const pair of validPairs) {
-      // Get all price data for this pair
-      const pairData = priceData.filter(data => data.pair === pair);
-      
-      // Compare prices between exchanges
-      for (let i = 0; i < pairData.length; i++) {
-        for (let j = i + 1; j < pairData.length; j++) {
-          const exA = pairData[i];
-          const exB = pairData[j];
-          
-          // Calculate spread
-          const spread = Math.abs(exA.price - exB.price);
-          const spreadPercent = (spread / Math.min(exA.price, exB.price)) * 100;
-          
-          // Only include significant spreads (> 1%)
-          if (spreadPercent > 1.0) {
-            const [buyExchange, sellExchange] = exA.price < exB.price 
-              ? [exA, exB] 
-              : [exB, exA];
-            
-            // Create mock networks for demo purposes
-            const networks = [
-              {
-                name: "Ethereum",
-                fee: 5 + Math.random() * 15,
-                speed: "Medium",
-                congestion: "Medium",
-                estimatedTimeMinutes: 10
-              },
-              {
-                name: "Binance Smart Chain",
-                fee: 0.5 + Math.random() * 2,
-                speed: "Fast",
-                congestion: "Low",
-                estimatedTimeMinutes: 3
-              },
-              {
-                name: "Solana",
-                fee: 0.01 + Math.random() * 0.05,
-                speed: "Fast",
-                congestion: "Low",
-                estimatedTimeMinutes: 1
-              }
-            ] as NetworkInfo[];
-            
-            // Choose best network (lowest fee)
-            const bestNetwork = [...networks].sort((a, b) => a.fee - b.fee)[0];
-            
-            newArbitrageOpportunities.push({
-              id: `${buyExchange.exchange}-${sellExchange.exchange}-${pair}`,
-              fromExchange: buyExchange.exchange,
-              toExchange: sellExchange.exchange,
-              pair: pair,
-              spreadAmount: spread,
-              spreadPercent: spreadPercent,
-              volume24h: Math.min(buyExchange.volume24h, sellExchange.volume24h),
-              timestamp: new Date(),
-              estimatedProfit: (spread * 100) / buyExchange.price, // Rough estimate
-              fees: 10 + Math.random() * 20, // Mock fee
-              netProfit: (spread * 100) / buyExchange.price - (10 + Math.random() * 20),
-              networks,
-              bestNetwork,
-              feeDetails: {
-                exchangeFees: 5 + Math.random() * 10,
-                networkFees: bestNetwork.fee,
-                otherFees: 2 + Math.random() * 5
-              },
-              fromExchangePrice: buyExchange.price,
-              toExchangePrice: sellExchange.price
-            });
-          }
+        // If price change exceeds 5%, send a notification
+        if (Math.abs(priceChange) >= 5) {
+          notifyPriceAlert(newPriceData.pair, newPriceData.price, priceChange);
         }
       }
-    }
-    
-    // Sort by spread percentage (highest first)
-    newArbitrageOpportunities.sort((a, b) => b.spreadPercent - a.spreadPercent);
-    
-    // Update state with new opportunities
-    setArbitrageOpportunities(newArbitrageOpportunities);
-  }, [priceData]);
+      
+      if (existingIndex >= 0) {
+        const updatedData = [...current];
+        updatedData[existingIndex] = newPriceData;
+        return updatedData;
+      } else {
+        return [...current, newPriceData];
+      }
+    });
+  }, [notifyPriceAlert]);
   
-  // Context value
+  // Update arbitrage opportunities when price data changes
+  useEffect(() => {
+    if (priceData.length >= 2) {
+      const opportunities = detectArbitrageOpportunities(priceData);
+      setArbitrageOpportunities(opportunities);
+      
+      // Notify about high-profit opportunities
+      const minProfitForNotification = settings.notifications.minProfitThreshold || 2.0;
+      opportunities
+        .filter(opp => opp.spreadPercent >= minProfitForNotification)
+        .slice(0, 3) // Limit to top 3 to avoid notification spam
+        .forEach(opp => {
+          notifyArbitrageOpportunity(opp);
+        });
+    }
+  }, [priceData, notifyArbitrageOpportunity, settings.notifications.minProfitThreshold]);
+  
+  // Auto-refresh based on user settings
+  useEffect(() => {
+    // Only set up auto-refresh if interval is greater than 0
+    if (settings.refreshInterval > 0) {
+      const intervalId = setInterval(() => {
+        refreshData();
+      }, settings.refreshInterval * 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [settings.refreshInterval]);
+  
+  // Function to subscribe to a symbol
+  const subscribeToSymbol = async (symbol: string) => {
+    try {
+      await exchangeManager.subscribeToSymbol(symbol);
+    } catch (error) {
+      console.error(`Failed to subscribe to ${symbol}:`, error);
+    }
+  };
+  
+  // Function to unsubscribe from a symbol
+  const unsubscribeFromSymbol = async (symbol: string) => {
+    try {
+      await exchangeManager.unsubscribeFromSymbol(symbol);
+    } catch (error) {
+      console.error(`Failed to unsubscribe from ${symbol}:`, error);
+    }
+  };
+  
+  // Function to manually refresh all data
+  const refreshData = useCallback(() => {
+    // Force data refresh
+    exchangeManager.refreshAllPrices();
+    setLastRefreshTime(new Date());
+  }, [exchangeManager]);
+  
+  // Our context value
   const contextValue: CryptoContextType = {
     isLoading,
     exchanges,
@@ -476,11 +485,13 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Custom hook for consuming this context
+// Hook to access our context
 export function useCrypto() {
   const context = useContext(CryptoContext);
+  
   if (context === undefined) {
     throw new Error('useCrypto must be used within a CryptoProvider');
   }
+  
   return context;
 }
